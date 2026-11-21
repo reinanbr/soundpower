@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.reinanbr.soundpower.ui
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -39,16 +40,43 @@ import com.reinanbr.soundpower.ui.setup.SetupViewModel
 import com.reinanbr.soundpower.ui.theme.SoundPowerTheme
 
 class MainActivity : ComponentActivity() {
+    private val container get() = (application as SoundPowerApplication).container
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        val prefs = (application as SoundPowerApplication).container.uiPrefs
+        if (savedInstanceState == null) takeSearch(intent)
+        val prefs = container.uiPrefs
         setContent {
             val theme by prefs.theme.collectAsStateWithLifecycle(ThemeMode.SYSTEM)
             SoundPowerTheme(theme) {
                 SoundPowerRoot()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeSearch(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        container.visible.value = true
+    }
+
+    override fun onStop() {
+        container.visible.value = false
+        super.onStop()
+    }
+
+    /** An AutoEQ suggestion's notification opens the presets with a search. */
+    private fun takeSearch(intent: Intent?) {
+        intent?.getStringExtra(EXTRA_PRESET_SEARCH)?.let { container.presetSearch.value = it }
+    }
+
+    companion object {
+        const val EXTRA_PRESET_SEARCH = "com.reinanbr.soundpower.extra.PRESET_SEARCH"
     }
 }
 

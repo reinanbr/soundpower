@@ -3,12 +3,17 @@ package com.reinanbr.soundpower
 
 import android.content.Context
 import android.media.AudioManager
+import com.reinanbr.soundpower.data.PresetStore
 import com.reinanbr.soundpower.data.SettingsStore
+import com.reinanbr.soundpower.devices.OutputMonitor
 import com.reinanbr.soundpower.effect.AudioEffectTransport
 import com.reinanbr.soundpower.effect.EffectController
 import com.reinanbr.soundpower.engine.EngineMode
-import com.reinanbr.soundpower.engine.RootlessService
+import com.reinanbr.soundpower.engine.EqService
 import com.reinanbr.soundpower.eq.EqRepository
+import com.reinanbr.soundpower.model.AutoEq
+import com.reinanbr.soundpower.model.AutoEqIndex
+import com.reinanbr.soundpower.presets.PresetRepository
 import com.reinanbr.soundpower.root.LibsuRootShell
 import com.reinanbr.soundpower.root.ModuleManager
 import com.reinanbr.soundpower.root.ModuleProp
@@ -19,6 +24,8 @@ import com.reinanbr.soundpower.ui.prefs.UiPrefsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -40,7 +47,7 @@ class AppContainer(context: Context) {
 
     val uiPrefs = UiPrefsStore(File(app.filesDir, "ui_prefs.json"), ioScope)
 
-    /** The equalizer without root, attached while [RootlessService] runs. */
+    /** The equalizer without root, attached while [EqService] runs. */
     val rootless = RootlessEngine(AndroidDynamicsEffect.FACTORY, ::outputSampleRate)
 
     val eq = EqRepository(
@@ -58,13 +65,39 @@ class AppContainer(context: Context) {
         scope = scope,
     )
 
+    /** The output music plays on. */
+    val output = OutputMonitor(app, appScope)
+
+    val presets = PresetRepository(
+        store = PresetStore(File(app.filesDir, "presets.json"), ioScope),
+        eq = eq,
+        output = output.output,
+        loadAutoEq = ::loadAutoEq,
+        scope = scope,
+    )
+
+    /** An activity of the app is on screen. */
+    val visible = MutableStateFlow(false)
+
+    /** A preset search to open, from a notification; the equalizer screen takes it. */
+    val presetSearch = MutableStateFlow<String?>(null)
+
+    /**
+     * Whether [EqService] should run: without root while the equalizer is on (it holds Android's
+     * effect), and in either mode while presets switch by output.
+     */
+    val serviceWanted: Flow<Boolean> = combine(
+        uiPrefs.engine,
+        eq.settings.filterNotNull().map { it.enabled },
+        presets.library.filterNotNull(),
+    ) { mode, on, lib -> (mode == EngineMode.ROOTLESS && on) || (lib.switchByOutput && lib.assignments.isNotEmpty()) }
+        .distinctUntilChanged()
+
     init {
-        // Without root the equalizer lives in a foreground service: start it whenever it should
-        // run (the service stops itself when it should not).
+        presets.start()
+        // Start the service whenever it should run (it stops itself when it should not).
         appScope.launch {
-            combine(uiPrefs.engine, eq.settings.filterNotNull().map { it.enabled }) { mode, on -> mode == EngineMode.ROOTLESS && on }
-                .distinctUntilChanged()
-                .collect { if (it) RootlessService.start(app) }
+            serviceWanted.collect { if (it) EqService.start(app) }
         }
     }
 
@@ -81,6 +114,10 @@ class AppContainer(context: Context) {
         app.getSystemService(AudioManager::class.java)?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
             ?.takeIf { it > 0 } ?: DEFAULT_SAMPLE_RATE
 
+    private suspend fun loadAutoEq(): AutoEqIndex = withContext(Dispatchers.IO) {
+        app.assets.open(AUTOEQ_ASSET).bufferedReader().useLines { AutoEqIndex(AutoEq.readDatabase(it)) }
+    }
+
     /** The module zip from the APK's assets, where root can read it. */
     private suspend fun copyModuleZip(): File = withContext(Dispatchers.IO) {
         val out = File(app.cacheDir, MODULE_ASSET)
@@ -92,5 +129,8 @@ class AppContainer(context: Context) {
         /** Put there by the bundleMagiskModule task (app/build.gradle.kts). */
         const val MODULE_ASSET = "soundpower-module.zip"
         const val DEFAULT_SAMPLE_RATE = 48000
+
+        /** Written by tools/autoeq/build_db.py. */
+        const val AUTOEQ_ASSET = "autoeq.tsv"
     }
 }

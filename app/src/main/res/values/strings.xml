@@ -250,17 +250,37 @@
     <string name="stereo_mix_needs_root">Without root only the balance works: width and mono mix the channels, which Android\'s effect cannot do.</string>
     <string name="limiter_hint_rootless">Without root, Android\'s limiter follows the level, not each peak, so short peaks can still clip. Auto preamp keeps boosts safe.</string>
 
-    <!-- The service that holds the effect without root. -->
-    <string name="rootless_channel">Equalizer without root</string>
-    <string name="rootless_channel_description">Shown while the equalizer runs without root. Android removes the effect when the app stops, so the app stays running.</string>
-    <string name="rootless_notification_title">Equalizer on</string>
-    <string name="rootless_notification_starting">Starting…</string>
+    <!-- The service that holds the effect without root and switches presets by output. -->
+    <string name="service_channel">Equalizer</string>
+    <string name="service_channel_description">Shown while the app runs in the background: to hold the effect without root, or to switch presets when the output changes.</string>
+    <string name="service_notification_starting">Starting…</string>
+    <string name="service_turn_off">Turn off</string>
+    <string name="suggestion_channel">Headphone suggestions</string>
+    <string name="suggestion_channel_description">Offers AutoEQ profiles when headphones connect.</string>
+    <string name="suggestion_title">AutoEQ profiles for %1$s</string>
+    <plurals name="suggestion_text">
+        <item quantity="one">%1$d measured profile matches. Tap to see it.</item>
+        <item quantity="other">%1$d measured profiles match. Tap to see them.</item>
+    </plurals>
+    <string name="suggestion_show">Show</string>
     <string name="rootless_notification_global">Applied to all audio</string>
     <string name="rootless_notification_failed">Android refused the effect on the output. Open the app for details.</string>
     <string name="rootless_notification_waiting">Waiting for a player</string>
-    <string name="rootless_turn_off">Turn off</string>
     <plurals name="rootless_notification_sessions">
         <item quantity="one">Applied to %1$d player</item>
         <item quantity="other">Applied to %1$d players</item>
     </plurals>
+
+    <!-- Outputs. -->
+    <string name="output_speaker">Speaker</string>
+    <string name="output_wired">Wired headphones</string>
+    <string name="output_bluetooth">Bluetooth</string>
+    <string name="output_usb">USB audio</string>
+    <string name="output_other">Other output</string>
+    <string name="output_any_bluetooth">Any Bluetooth device</string>
+    <string name="output_any_usb">Any USB device</string>
+    <string name="output_this_device">%1$s playing now</string>
+
+    <!-- Presets. -->
+    <string name="preset_none">No preset</string>
 </resources>

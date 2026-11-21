@@ -5,13 +5,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.reinanbr.soundpower.SoundPowerApplication
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * Brings the equalizer of the mode without root back after a reboot or an app update, if it was
- * on. Both broadcasts allow starting a foreground service from the background.
+ * Starts [EqService] after a reboot or an app update if it should run (the equalizer without root,
+ * or presets that switch by output). Both broadcasts allow starting a foreground service from the
+ * background.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -20,10 +20,7 @@ class BootReceiver : BroadcastReceiver() {
         val pending = goAsync()
         container.appScope.launch {
             try {
-                if (container.uiPrefs.engine.first() == EngineMode.ROOTLESS) {
-                    container.eq.start()
-                    if (container.eq.settings.filterNotNull().first().enabled) RootlessService.start(context)
-                }
+                if (container.serviceWanted.first()) EqService.start(context)
             } finally {
                 pending.finish()
             }
