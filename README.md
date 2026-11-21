@@ -1,9 +1,11 @@
 # SoundPower
 
-An open source, system-wide audio equalizer and processor for rooted Android devices.
+An open source, system-wide audio equalizer and processor for Android, with or without root.
 
-SoundPower is a native audio effect, loaded by the device's audio HAL, that processes the output of
-every music app. It is installed through a Magisk module and controlled by a Kotlin app.
+With root, SoundPower is a native audio effect, loaded by the device's audio HAL, that processes the
+output of every music app. It is installed through a Magisk module and controlled by a Kotlin app.
+Without root, the same app drives Android's own Dynamics Processing effect instead, with fewer
+features (see [the mode without root](docs/architecture.md#mode-without-root)).
 
 > **Status:** early development. The DSP core, the Android effect library, the Magisk module and
 > the app are in place: graphic (5–32 bands) and parametric (up to 32 bands, each on both
@@ -104,9 +106,11 @@ magisk-module/build.sh                  # the app bundles out/soundpower-module-
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-On first launch the app asks for root, offers to install the bundled module, and asks for a
-reboot. Once the effect is loaded, it opens the equalizer. Changes reach the effect at once and
-are saved to `state.bin`, so they apply from boot even if the app never runs again.
+On first launch the app asks how it should work. **With root** it asks for root, offers to install
+the bundled module, and asks for a reboot. Once the effect is loaded, it opens the equalizer.
+Changes reach the effect at once and are saved to `state.bin`, so they apply from boot even if the
+app never runs again. **Without root** it opens the equalizer straight away and keeps Android's
+effect attached from a foreground service while the equalizer is on (also after a reboot).
 
 ## Trying the DSP on WAV files
 

@@ -200,7 +200,8 @@ Gradle modules; the Gradle root is the repository root.
 | `android-core:data` | JVM | DataStore of `AudioSettings` as JSON, with a one-time import of the first version's store. |
 | `android-core:root` | Android | `RootShell` (libsu) and `ModuleManager`: Magisk version, module state, `magisk --install-module`, reboot, the state-file write, `dumpsys` parsing. Its tests run the shell scripts in the host's `sh` against a temporary tree. |
 | `android-core:effect` | Android | `EffectController` and its `AudioEffect` transport (HiddenApiBypass). |
-| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, and `AppContainer` (dependency injection by hand). |
+| `android-core:rootless` | Android | `RootlessEngine`: the mode without root, on Android's `DynamicsProcessing` effect (`DynamicsEffect` wraps it so the engine is tested on the JVM). The plan it applies (`SpectralLayout`, `DynamicsPlan`) lives in `android-core:model`. |
+| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, `RootlessService` and `BootReceiver` (mode without root), and `AppContainer` (dependency injection by hand). |
 
 **Control path.** `EffectController` creates an `AudioEffect` with SoundPower's type and
 implementation UUIDs on a session from `generateAudioSessionId()`. That constructor and
@@ -245,6 +246,51 @@ zip built from the same tree (`magisk-module/build.sh`; the Gradle task `bundleM
 with a hint when it is missing). Installing runs `magisk --install-module` and streams its output.
 Without root, a loaded effect can still be controlled: only installing, persisting and `dumpsys`
 need root.
+
+## Mode without root
+
+On first launch the app asks how it should make the sound (`EngineMode`, stored with the UI
+preferences; the menu can change it later). Installs from before this choice keep the root mode.
+**With root**, everything above applies. **Without root**, `EqRepository` sends the settings to
+`RootlessEngine` instead of SoundPower's effect, saves them in the app only, and never asks for root.
+
+**The effect.** `android.media.audiofx.DynamicsProcessing` (public API since Android 9; AOSP
+`libeffects/dynamicsproc`) runs per channel: input gain, pre-EQ, multiband compressor, post-EQ,
+limiter. The engine uses the frequency-domain variant, which applies one FFT per block and gives
+every bin the flat gain of the pre-EQ band it falls in, so the pre-EQ is a spectral EQ rather than
+a set of filters. The block is the preferred frame duration at the output rate, rounded up to a
+power of two (the *precision* setting: 20, 40 or 80 ms, i.e. 1024, 2048 or 4096 points at 48 kHz,
+bins 47, 23 or 12 Hz apart, and as much delay).
+
+**The plan.** `SpectralLayout` gives every low bin a band of its own and groups higher bins into
+bands of 1/12 octave (about 90 bands at 2048 points). `DynamicsPlan` evaluates `ResponseCurve`
+(graphic or parametric bands plus bass and treble) at every bin for the left and the right path,
+and sets each band to the mean of the curve over its bins, so bands routed to L or R work. The
+preamp (auto-preamp included) and the balance become the input gains, the compressor one MBC band
+up to 20 kHz, and the limiter the effect's limiter with both channels linked. The effect cannot mix
+channels, so mid and side bands, width and mono are left out; the UI disables them and says why.
+The effect's limiter follows the block level with no lookahead, so it is not a peak limiter.
+
+**The engine.** `RootlessEngine` keeps one instance per audio session it is attached to, created
+with the whole plan in its configuration (priority `Int.MAX_VALUE`, so no other app takes control
+of a shared instance). A change sends only what moved by more than 0.05 dB: a band drag sends a
+few dozen band gains, not the whole curve. An instance that fails is recreated once with the full
+plan; one that cannot be created is retried with a back-off (2 s doubling to 60 s).
+
+**Where it attaches.** *All audio*: session 0, the global output mix; AudioFlinger puts it on the
+output that plays music and moves it with the route. *Players that announce their audio*: the
+sessions players open with `ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION`, for devices where session 0
+has no effect.
+
+**Lifetime.** Android removes an app's effects when its process dies, so `RootlessService`, a
+foreground service (`specialUse`), holds them while the mode is on and the equalizer is enabled.
+`AppContainer` starts it when both become true; it stops itself 10 s after either becomes false.
+Its notification shows where the effect is attached and has an off button. `BootReceiver` starts
+it after a reboot or an app update. The status card lists each attachment, the layout, and warns
+when SoundPower's own effect is registered too (both would apply the settings).
+
+Tested on a moto g35 5G (Android 15, no root, Dolby DAP present): the instance attaches to
+session 0 on the Bluetooth output and comes back after an app update.
 
 ## Repository layout
 
