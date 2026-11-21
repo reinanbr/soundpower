@@ -361,4 +361,20 @@
     <string name="action_more">More</string>
     <string name="action_clear">Clear</string>
     <string name="about_autoeq">Headphone corrections from AutoEq by Jaakko Pasanen, under the MIT license.</string>
+    <!-- Direct volume control (root mode, effects page). -->
+    <string name="direct_volume">Direct volume control</string>
+    <string name="direct_volume_hint">SoundPower applies the media volume itself, after its effects. With auto preamp on, boosts keep their full strength at lower volumes.</string>
+    <string name="direct_volume_restart_on">Restart the audio so that SoundPower takes over the volume. Playback stops for a moment.</string>
+    <string name="direct_volume_restart_off">Restart the audio to give the volume back to the system. Playback stops for a moment.</string>
+    <string name="direct_volume_restart">Restart audio</string>
+    <string name="direct_volume_restarting">Restarting the audio…</string>
+    <string name="direct_volume_needs_update">The installed module is too old for this. Update it from the setup screen.</string>
+    <string name="direct_volume_waiting">Applies the volume of whatever plays next.</string>
+    <string name="direct_volume_stream_applied">Session %1$d: %2$s, applied by SoundPower</string>
+    <string name="direct_volume_stream_mixer">Session %1$d: %2$s, applied by the system: another effect controls the volume here</string>
+    <string name="direct_volume_left_right">L %1$s / R %2$s %3$s</string>
+    <string name="direct_volume_not_loaded">No audio process has SoundPower loaded. Is the module active?</string>
+    <string name="direct_volume_failed">Restarting the audio failed: %1$s</string>
+    <string name="direct_volume_knob">Volume</string>
+    <string name="direct_volume_steps">%1$d / %2$d</string>
 </resources>

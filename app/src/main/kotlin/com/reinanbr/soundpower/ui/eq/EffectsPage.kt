@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -29,12 +30,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reinanbr.soundpower.R
 import com.reinanbr.soundpower.engine.EngineMode
+import com.reinanbr.soundpower.eq.EqStatus
 import com.reinanbr.soundpower.model.Compressor
 import com.reinanbr.soundpower.model.Limiter
 import com.reinanbr.soundpower.model.Ranges
 import com.reinanbr.soundpower.model.Tone
+import com.reinanbr.soundpower.protocol.Capability
+import com.reinanbr.soundpower.root.EffectDump
+import com.reinanbr.soundpower.root.ModuleManager
 import com.reinanbr.soundpower.ui.components.KnobGrid
 import com.reinanbr.soundpower.ui.components.ParamKnob
 import com.reinanbr.soundpower.ui.components.Scale
@@ -69,6 +76,7 @@ internal fun EffectsPage(state: EqUiState, vm: EqViewModel, actions: EqActions) 
             StereoCard(s.stereo, on, features.stereoMix, vm, actions.requestValue)
             CompressorCard(s.compressor, on, vm, actions.requestValue)
             LimiterCard(s.limiter, on, features.mode == EngineMode.ROOTLESS, vm, actions.requestValue)
+            if (features.mode == EngineMode.ROOT) DirectVolumeCard(state.status)
             Text(
                 stringResource(R.string.eq_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -88,10 +96,13 @@ private fun EffectCard(
     hint: String?,
     checked: Boolean?,
     onChecked: (Boolean) -> Unit = {},
+    /** False keeps the controls at full strength while [checked] is off. */
+    fadeWhenOff: Boolean = true,
     content: @Composable ColumnScope.(active: Boolean) -> Unit,
 ) {
     val active = checked ?: true
-    val fade by animateFloatAsState(if (active) 1f else 0.5f, valueSpring(), label = "effect-fade")
+    val fadeTo = if (active || !fadeWhenOff) 1f else 0.5f
+    val fade by animateFloatAsState(fadeTo, valueSpring(), label = "effect-fade")
     Card(
         Modifier.fillMaxWidth().animateContentSize(valueSpring()),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -289,6 +300,88 @@ private fun LimiterCard(
         )
     }
 }
+
+/**
+ * Direct volume control: the switch, the audio restart that applies a change (the effect decides
+ * when it is loaded), and, while it is on, how each playing stream's volume is applied.
+ */
+@Composable
+private fun DirectVolumeCard(status: EqStatus?, dv: DirectVolumeViewModel = viewModel(factory = DirectVolumeViewModel.Factory)) {
+    val ui by dv.state.collectAsStateWithLifecycle()
+    val enabled = ui.enabled ?: return
+    // Null while unknown (the effect was not reached yet).
+    val supported = status?.capabilities?.let { it and Capability.DIRECT_VOLUME != 0 }
+    val claimed = status?.effect?.volumeControlClaimed
+    val title = stringResource(R.string.direct_volume)
+    EffectCard(
+        title, stringResource(R.string.direct_volume_hint), checked = enabled.takeIf { supported != false },
+        onChecked = dv::setEnabled, fadeWhenOff = false,
+    ) {
+        val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        when {
+            supported == false -> Text(stringResource(R.string.direct_volume_needs_update), style = MaterialTheme.typography.bodyMedium)
+            ui.restarting -> Text(stringResource(R.string.direct_volume_restarting), style = MaterialTheme.typography.bodyMedium)
+            claimed != null && claimed != enabled -> {
+                Text(
+                    stringResource(if (enabled) R.string.direct_volume_restart_on else R.string.direct_volume_restart_off),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                FilledTonalButton(onClick = dv::restartAudio) { Text(stringResource(R.string.direct_volume_restart)) }
+            }
+            claimed == true -> {
+                VolumeKnob(ui, dv)
+                val streams = status.streams.orEmpty().filter { it.isActive && it.volume != null }
+                if (streams.isEmpty()) {
+                    Text(stringResource(R.string.direct_volume_waiting), style = MaterialTheme.typography.bodySmall, color = muted)
+                }
+                for (d in streams.take(MAX_STREAMS)) StreamVolumeLine(d)
+            }
+        }
+        when (val e = ui.restartError) {
+            null, is ModuleManager.AudioRestart.Restarted -> {}
+            ModuleManager.AudioRestart.NotLoaded -> ErrorLine(stringResource(R.string.direct_volume_not_loaded))
+            is ModuleManager.AudioRestart.Failed -> ErrorLine(stringResource(R.string.direct_volume_failed, e.message))
+        }
+    }
+}
+
+@Composable
+private fun VolumeKnob(ui: DirectVolumeUi, dv: DirectVolumeViewModel) {
+    val level = ui.volume ?: return
+    val steps = ui.volumeSteps
+    val range = steps.first.toFloat()..steps.last.toFloat()
+    if (range.isEmpty() || range.start == range.endInclusive) return
+    val label = stringResource(R.string.direct_volume_knob)
+    KnobGrid(
+        { m ->
+            ParamKnob(
+                label, level.toFloat(), range, stringResource(R.string.direct_volume_steps, level, steps.last), dv::setVolume,
+                { }, m, default = range.start, accent = MaterialTheme.colorScheme.secondary,
+            )
+        },
+    )
+}
+
+@Composable
+private fun StreamVolumeLine(d: EffectDump) {
+    val v = d.volume ?: return
+    val db = stringResource(R.string.unit_db)
+    val level = if (kotlin.math.abs(v.leftDb - v.rightDb) < 0.05f) {
+        "${formatDb(v.leftDb)} $db"
+    } else {
+        stringResource(R.string.direct_volume_left_right, formatDb(v.leftDb), formatDb(v.rightDb), db)
+    }
+    val text = stringResource(if (v.applied) R.string.direct_volume_stream_applied else R.string.direct_volume_stream_mixer, d.sessionId, level)
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun ErrorLine(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+}
+
+/** More playing streams than this are rare; the diagnostics list them all. */
+private const val MAX_STREAMS = 3
 
 /** Attack and release times turn evenly per decade. */
 @Composable

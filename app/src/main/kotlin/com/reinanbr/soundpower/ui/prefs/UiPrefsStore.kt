@@ -11,6 +11,7 @@ import com.reinanbr.soundpower.engine.RootlessOptions
 import com.reinanbr.soundpower.engine.RootlessScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import java.io.File
 import java.io.InputStream
@@ -69,6 +70,16 @@ class UiPrefsStore(file: File, scope: CoroutineScope) {
         store.updateData { it + (KEY_ROOTLESS_SCOPE to options.scope.name) + (KEY_PRECISION to options.precision.name) }
     }
 
+    /**
+     * Direct volume control (root mode): the effect applies the stream volume itself. An app-wide
+     * choice, not part of the audio settings or presets; the effect reads it when it is loaded.
+     */
+    val directVolume: Flow<Boolean> = store.data.map { it[KEY_DIRECT_VOLUME] == "1" }.distinctUntilChanged()
+
+    suspend fun setDirectVolume(on: Boolean) {
+        store.updateData { it + (KEY_DIRECT_VOLUME to if (on) "1" else "0") }
+    }
+
     private object LinesSerializer : Serializer<Map<String, String>> {
         override val defaultValue: Map<String, String> = emptyMap()
 
@@ -89,5 +100,6 @@ class UiPrefsStore(file: File, scope: CoroutineScope) {
         const val KEY_ENGINE = "engine"
         const val KEY_ROOTLESS_SCOPE = "rootless_scope"
         const val KEY_PRECISION = "rootless_precision"
+        const val KEY_DIRECT_VOLUME = "direct_volume"
     }
 }

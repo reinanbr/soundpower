@@ -186,7 +186,7 @@ every boot, and removing the module restores the device.
 |---|---|---|
 | `customize.sh` | install | Checks API ≥ 28, Magisk ≥ 24, an ARM CPU and the HIDL effects HAL (refuses AIDL). Runs `sp-xmlpatch` on every `audio_effects*.xml` in `/odm/etc`, `/vendor/etc`, `/vendor/etc/audio/*/` and `/system/etc` (skipping files that are not effects configurations), adds the library to `/vendor/lib/soundfx` and/or `/vendor/lib64/soundfx` depending on which the vendor partition has, sets SELinux contexts (`vendor_configs_file`, `vendor_file`), and warns when another module replaces the same files. |
 | `post-fs-data.sh` | every boot, before the HAL starts | Creates `/data/vendor/soundpower` and labels it `soundpower_data_file` (loading `sepolicy.rule` into the live policy when the kernel does not know the type, i.e. Magisk could not preload it). Saves the list of existing tombstones for the watchdog. Bind-mounts the copies of files on partitions Magisk does not overlay (a separate `/odm`). |
-| `service.sh` | every boot, in the background | Watchdog: for 3 minutes after boot, watches the PID of the process serving the effects factory. Three restarts, or a tombstone that is not in the saved list and has a frame in `libsoundpower.so`, make the module disable itself for the next boot. Then writes `log/diag.txt`. |
+| `service.sh` | every boot, in the background | Watchdog: for 3 minutes after boot, watches the PID of the process serving the effects factory. Three restarts (not counting one the app asked for with `restart-requested`), or a tombstone that is not in the saved list and has a frame in `libsoundpower.so`, make the module disable itself for the next boot. Then writes `log/diag.txt`. |
 | `diag.sh` | on demand | Prints the HAL, the library mapping, the mounted configurations, the data directory, SELinux denials, the effect's log and the live instances. |
 | `uninstall.sh` | removal | Deletes `/data/vendor/soundpower`. |
 
@@ -240,9 +240,10 @@ above the band faders; when the bands scroll it frames the ones in view, and tap
 scrolls them. In parametric mode the curve shows a marker per band in the band's colour (drag to
 move, long-press to type), a dashed curve for each channel with bands of its own, and a card per
 band with type, channel, colour, lock and knobs for frequency, gain and Q. *Tone and dynamics*:
-knobs for bass and treble with their frequencies, balance and width (plus mono), the compressor
-and the limiter. *Menu*: band configuration, reset, presets (the list, switching by output, AutoEQ
-suggestions, settings export and import), setup and status, theme, version.
+knobs for bass and treble with their frequencies, balance and width (plus mono), the compressor,
+the limiter and, in the root mode, direct volume control. *Menu*: band configuration, reset, presets
+(the list, switching by output, AutoEQ suggestions, settings export and import), setup and status,
+theme, version.
 
 **Motion.** A control under the finger follows it exactly; a value that changes on its own (reset,
 typed value, mode switch) springs to it. Dragged values stick briefly at their centre with a tick,
@@ -259,6 +260,20 @@ zip built from the same tree (`magisk-module/build.sh`; the Gradle task `bundleM
 with a hint when it is missing). Installing runs `magisk --install-module` and streams its output.
 Without root, a loaded effect can still be controlled: only installing, persisting and `dumpsys`
 need root.
+
+**Direct volume control.** An app-wide preference (`UiPrefsStore`), not part of the audio settings
+or presets: `EqRepository` puts it into the MASTER it sends and writes to `state.bin`. The library
+decides at load whether it controls the volume (see the
+[protocol](protocol.md#direct-volume-control-12)), so the card compares the preference with
+`STATUS` bit 3 and offers to restart the audio when they differ. `ModuleManager.restartAudio()`
+finds the processes that map `libsoundpower.so` in `/proc/*/maps`, looks their PIDs up in init's
+`init.svc_debug_pid.*` properties and sends `ctl.restart` for each service found (on the test
+device `vendor.audio-hal-2-0`; audioserver restarts with it). A process that is not an init service
+is left alone. It touches `restart-requested` in the module directory first, so that the boot
+watchdog does not count the restart. The app writes `state.bin` before the restart and sends the
+settings again once the new control instance answers. While it is on, the card lists each playing
+stream's volume from the dump lines, and whether SoundPower or the mixer applies it (the mixer does
+when another effect later in the chain also controls the volume).
 
 ## Mode without root
 

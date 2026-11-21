@@ -60,6 +60,7 @@ class AppContainer(context: Context) {
         rootless = rootless,
         modules = modules,
         engine = uiPrefs.engine,
+        directVolume = uiPrefs.directVolume,
         isModuleActive = AudioEffectTransport::isRegistered,
         staging = File(app.cacheDir, "state.bin"),
         scope = scope,
