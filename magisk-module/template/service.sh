@@ -5,7 +5,8 @@
 # down with it (no sound on the device), so for a few minutes after boot this watches the
 # process that hosts the effects factory. If it keeps restarting, or a tombstone shows a crash
 # inside libsoundpower.so, the module disables itself for the next boot and says why in
-# log/boot.log. Then it writes log/diag.txt.
+# log/boot.log. A restart the app asked for (it touches restart-requested first, for direct
+# volume control) does not count. Then it writes log/diag.txt.
 MODDIR=${0%/*}
 umask 022
 # shellcheck source=common.sh
@@ -14,6 +15,9 @@ SP_LOG=$MODDIR/log/boot.log
 SP_WATCH_SECONDS=${SP_WATCH_SECONDS:-180}
 SP_WATCH_INTERVAL=${SP_WATCH_INTERVAL:-5}
 SP_MAX_RESTARTS=3
+SP_RESTART_REQUESTED=$MODDIR/restart-requested
+# A request left from the previous boot must not excuse a crash in this one.
+rm -f "$SP_RESTART_REQUESTED"
 
 sp_waited=0
 until [ "$(getprop sys.boot_completed)" = 1 ] || [ "$sp_waited" -ge 600 ]; do
@@ -30,8 +34,13 @@ while [ "$sp_elapsed" -lt "$SP_WATCH_SECONDS" ]; do
     sp_elapsed=$((sp_elapsed + SP_WATCH_INTERVAL))
     sp_pid=$(sp_effects_hal_pid)
     if [ -n "$sp_pid" ] && [ -n "$sp_last" ] && [ "$sp_pid" != "$sp_last" ]; then
-        sp_restarts=$((sp_restarts + 1))
-        sp_log "$SP_LOG" "watchdog: effects HAL restarted ($sp_last -> $sp_pid)"
+        if [ -f "$SP_RESTART_REQUESTED" ]; then
+            rm -f "$SP_RESTART_REQUESTED"
+            sp_log "$SP_LOG" "watchdog: effects HAL restarted on request ($sp_last -> $sp_pid)"
+        else
+            sp_restarts=$((sp_restarts + 1))
+            sp_log "$SP_LOG" "watchdog: effects HAL restarted ($sp_last -> $sp_pid)"
+        fi
     fi
     [ -n "$sp_pid" ] && sp_last=$sp_pid
 

@@ -312,6 +312,28 @@ printf '1160\n1200\n1300\n1400\n' >"$work/pids"
 ok "watchdog: restart loop disables the module" [ -f "$moddir/disable" ]
 ok "watchdog: says why" contains "$moddir/log/boot.log" "the effects HAL restarted 3 times"
 
+# Watchdog: a restart the app asked for does not count, and a request left from the previous
+# boot is dropped. The stub "touch" stands in for the app, at the watchdog's first check.
+rm -f "$moddir/disable"
+: >"$moddir/restart-requested"
+printf '1160
+1200
+1300
+1400
+' >"$work/pids"
+cp "$stubs/sleep" "$work/sleep.stub"
+cat >"$stubs/sleep" <<EOF
+#!/bin/sh
+[ -f "$work/requested-once" ] || { : >"$work/requested-once"; : >"$moddir/restart-requested"; }
+EOF
+(PATH=$stubs:$PATH SP_ROOT=$dev FAKE_PIDS=$work/pids SP_WATCH_SECONDS=60 sh "$moddir/service.sh")
+mv "$work/sleep.stub" "$stubs/sleep"
+rm -f "$work/requested-once"
+ok "watchdog: a requested restart does not count" [ ! -f "$moddir/disable" ]
+ok "watchdog: logs the requested restart" contains "$moddir/log/boot.log" "restarted on request (1160 -> 1200)"
+ok "watchdog: counts the other restarts" contains "$moddir/log/boot.log" "no problem in 60s (2 restarts)"
+ok "watchdog: uses up the request" [ ! -f "$moddir/restart-requested" ]
+
 # Watchdog: a crash in the library during this boot.
 rm -f "$moddir/disable"
 printf 'backtrace:\n      #00 pc 000000000004e3c4  /vendor/lib/soundfx/libsoundpower.so (sp::x+52)\n' >"$dev/data/tombstones/tombstone_02"
