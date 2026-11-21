@@ -12,7 +12,7 @@ namespace sp::dsp {
 
 /// Real-time-ready limiter settings.
 struct LimiterDesign {
-    double ceiling = 0.891250938;  ///< linear (-1 dBFS)
+    double ceiling = 0.891250938;  ///< linear (-1 dBFS); infinity when the limiter is off
     std::uint32_t lookahead = 72;  ///< samples, >= 1; also the limiter's latency
     double releaseCoef = 0.0;      ///< one-pole coefficient per sample
 

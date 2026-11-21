@@ -97,6 +97,11 @@ TEST(RealTime, ProcessNeverAllocates) {
         params.eq.bands[i].freqHz = 30.0 * static_cast<double>(i + 1);
         params.eq.bands[i].gainDb = 3.0;
     }
+    params.tone.bassDb = 4.0;
+    params.tone.trebleDb = -2.0;
+    params.stereo.width = 1.5;
+    params.compressor.enabled = true;
+    params.compressor.thresholdDb = -24.0;
     p.setParams(params);
     ASSERT_TRUE(p.prepare(48000.0, 2));
 
@@ -104,8 +109,17 @@ TEST(RealTime, ProcessNeverAllocates) {
     g_allocations = 0;
     for (int iteration = 0; iteration < 200; ++iteration) {
         // Control-side events happen outside the counted region...
-        switch (iteration % 6) {
-            case 0: params.eq.bands[3].gainDb = -params.eq.bands[3].gainDb; break;
+        switch (iteration % 10) {
+            case 0:
+                params.eq.bands[3].gainDb = -params.eq.bands[3].gainDb;
+                // Cycle a band through every channel route, in and out of mid/side.
+                params.eq.bands[5].channel =
+                    static_cast<BandChannel>((static_cast<int>(params.eq.bands[5].channel) + 1) % 5);
+                break;
+            case 6: params.tone.bassDb = -params.tone.bassDb; break;
+            case 7: params.stereo.mono = !params.stereo.mono; break;
+            case 8: params.compressor.enabled = !params.compressor.enabled; break;
+            case 9: params.limiter.enabled = !params.limiter.enabled; break;
             case 1: params.preampDb = params.preampDb == 0.0 ? -4.0 : 0.0; break;
             case 2: params.bypass = !params.bypass; break;
             case 3: params.limiter.lookaheadMs = params.limiter.lookaheadMs == 1.5 ? 3.0 : 1.5; break;

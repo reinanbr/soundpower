@@ -19,6 +19,7 @@ constexpr double kMaxSampleRate = 384000.0;
 
 constexpr double kPreampRampMs = 10.0;
 constexpr double kBypassRampMs = 20.0;
+constexpr double kStereoRampMs = 20.0;
 constexpr double kEqCrossfadeMs = 10.0;
 constexpr double kFadeMs = 2.0;
 
@@ -45,6 +46,7 @@ bool Processor::prepare(double sampleRate, std::size_t channels) {
     bypassRampFrames_ = msToFrames(kBypassRampMs, sampleRate);
     eqCrossfadeFrames_ = msToFrames(kEqCrossfadeMs, sampleRate);
     fadeFrames_ = msToFrames(kFadeMs, sampleRate);
+    stereo_.prepare(msToFrames(kStereoRampMs, sampleRate));
 
     limiter_.prepare(sampleRate, channels);
     dryCapacity_ = static_cast<std::size_t>(maxLookaheadSamples(sampleRate)) + 1;
@@ -69,14 +71,16 @@ void Processor::setParams(const ChainParams& params) {
 RtParams Processor::design(const ChainParams& params) {
     const ChainParams p = sanitize(params, sampleRate_);
     RtParams r;
-    r.eq = designEq(p.eq, sampleRate_);
+    r.eq = designEq(p.eq, p.tone, sampleRate_);
     r.eqSerial = (r.eq == lastDesign_.eq) ? lastDesign_.eqSerial : ++eqSerialCounter_;
 
     double preampDb = p.preampDb;
-    if (p.autoPreamp) preampDb -= std::max(0.0, eqPeakGainDb(r.eq, p.eq, sampleRate_));
+    if (p.autoPreamp) preampDb -= std::max(0.0, eqPeakGainDb(r.eq, sampleRate_));
     effectivePreampDb_ = preampDb;
     r.preampGain = dbToGain(preampDb);
 
+    r.stereo = designStereo(p.stereo);
+    r.compressor = designCompressor(p.compressor, sampleRate_);
     r.limiter = designLimiter(p.limiter, sampleRate_);
     r.bypass = p.bypass;
     lastDesign_ = r;
@@ -92,6 +96,7 @@ void Processor::setDryDelay(std::uint32_t frames) noexcept {
 void Processor::resetAudioState() noexcept {
     for (auto& bank : banks_) bank.reset();
     eqTransition_ = false;
+    compressor_.reset();
     limiter_.reset();
     setDryDelay(limiter_.latency());
     fade_.reset(1.0);
@@ -105,6 +110,8 @@ void Processor::applyParams(const RtParams& params, bool instant) noexcept {
         banks_[activeBank_].setDesign(current_.eq);
         preamp_.reset(current_.preampGain);
         wet_.reset(current_.bypass ? 0.0 : 1.0);
+        stereo_.setDesign(current_.stereo, /*instant=*/true);
+        compressor_.setDesign(current_.compressor);
         limiter_.setDesign(current_.limiter);
         resetAudioState();
         latency_.store(limiter_.latency(), std::memory_order_relaxed);
@@ -112,6 +119,8 @@ void Processor::applyParams(const RtParams& params, bool instant) noexcept {
     }
 
     wet_.setTarget(params.bypass ? 0.0 : 1.0, bypassRampFrames_);
+    stereo_.setDesign(params.stereo, /*instant=*/false);
+    compressor_.setDesign(params.compressor);
 
     if (params.eqSerial != current_.eqSerial) {
         // The preamp change rides on the EQ crossfade instead of ramping on its own.
@@ -234,6 +243,8 @@ void Processor::processBlock(const float* in, float* out, std::size_t frames) no
     }
 
     // ---- Limiter (always on) ---------------------------------------------------------------
+    stereo_.process(wet, nch, frames);
+    compressor_.process(wet, nch, frames);
     limiter_.process(wet, nch, frames);
 
     // ---- Bypass crossfade, structural fade, interleave -------------------------------------

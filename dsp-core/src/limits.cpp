@@ -32,6 +32,7 @@ ChainParams sanitize(const ChainParams& params, double sampleRate) noexcept {
     for (std::size_t i = 0; i < kMaxBands; ++i) {
         BandParams& b = out.eq.bands[i];
         if (static_cast<std::size_t>(b.type) >= kFilterTypeCount) b.type = FilterType::Peaking;
+        if (static_cast<std::size_t>(b.channel) >= kBandChannelCount) b.channel = BandChannel::All;
         b.freqHz = clampField(b.freqHz, kDefaultBand.freqHz, kFreqMinHz, freqMax);
         b.gainDb = clampField(b.gainDb, 0.0, kGainMinDb, kGainMaxDb);
         b.q = clampField(b.q, kDefaultBand.q, kQMin, kQMax);
@@ -39,6 +40,29 @@ ChainParams sanitize(const ChainParams& params, double sampleRate) noexcept {
     }
 
     out.preampDb = clampField(params.preampDb, kDefaults.preampDb, kPreampMinDb, kPreampMaxDb);
+
+    const ToneParams& t = kDefaults.tone;
+    out.tone.bassDb = clampField(params.tone.bassDb, 0.0, kGainMinDb, kGainMaxDb);
+    out.tone.bassFreqHz = clampField(params.tone.bassFreqHz, t.bassFreqHz, kFreqMinHz, freqMax);
+    out.tone.trebleDb = clampField(params.tone.trebleDb, 0.0, kGainMinDb, kGainMaxDb);
+    out.tone.trebleFreqHz =
+        clampField(params.tone.trebleFreqHz, t.trebleFreqHz, kFreqMinHz, freqMax);
+
+    out.stereo.balance = clampField(params.stereo.balance, 0.0, kBalanceMin, kBalanceMax);
+    out.stereo.width = clampField(params.stereo.width, 1.0, kWidthMin, kWidthMax);
+
+    const CompressorParams& c = kDefaults.compressor;
+    CompressorParams& oc = out.compressor;
+    oc.thresholdDb = clampField(params.compressor.thresholdDb, c.thresholdDb, kCompThresholdMinDb,
+                                kCompThresholdMaxDb);
+    oc.ratio = clampField(params.compressor.ratio, c.ratio, kCompRatioMin, kCompRatioMax);
+    oc.attackMs =
+        clampField(params.compressor.attackMs, c.attackMs, kCompAttackMinMs, kCompAttackMaxMs);
+    oc.releaseMs = clampField(params.compressor.releaseMs, c.releaseMs, kCompReleaseMinMs,
+                              kCompReleaseMaxMs);
+    oc.kneeDb = clampField(params.compressor.kneeDb, c.kneeDb, kCompKneeMinDb, kCompKneeMaxDb);
+    oc.makeupDb =
+        clampField(params.compressor.makeupDb, c.makeupDb, kCompMakeupMinDb, kCompMakeupMaxDb);
 
     const LimiterParams& d = kDefaults.limiter;
     out.limiter.ceilingDb =

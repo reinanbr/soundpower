@@ -34,15 +34,26 @@ constexpr const char* kUsage = R"(usage:
   sp-cli bench [--quick] [--fs HZ] [--channels 1|2]
 
 chain options:
-  --band TYPE:FREQ:GAIN:Q   repeatable, up to 32 bands. TYPE is one of
+  --band TYPE:FREQ:GAIN:Q[:CH]
+                            repeatable, up to 32 bands. TYPE is one of
                             peak, lowshelf, highshelf, lowpass, highpass, notch, bandpass
-                            (GAIN is ignored by the last four)
+                            (GAIN is ignored by the last four). CH is the channel the band
+                            filters: all (default), left, right, mid, side
   --preamp DB               preamp gain (default 0)
   --no-auto-preamp          do not subtract the EQ curve's peak from the preamp
   --ceiling DB              limiter ceiling (default -1)
   --lookahead MS            limiter lookahead (default 1.5)
   --release MS              limiter release (default 50)
   --bypass                  A/B bypass (outputs the input, latency-aligned)
+  --no-limiter              turn the limiter off (its delay stays)
+  --bass DB  --bass-freq HZ        bass shelf (default 0 dB at 100 Hz)
+  --treble DB  --treble-freq HZ    treble shelf (default 0 dB at 8000 Hz)
+  --balance B               -1 (left) .. 1 (right), default 0
+  --width W                 stereo width: 0 mono, 1 unchanged (default), 2 wide
+  --mono                    mono downmix
+  --comp-threshold DB       turns the compressor on (default threshold -18)
+  --comp-ratio R  --comp-attack MS  --comp-release MS  --comp-knee DB  --comp-makeup DB
+                            compressor settings (defaults 3, 10, 150, 6, 0)
 
 process writes the output time-aligned with the input (the limiter latency is removed) and
 in the input's format unless --format is given (16-bit PCM input -> s16, otherwise f32).
@@ -79,6 +90,15 @@ std::optional<FilterType> parseType(std::string_view s) {
     return std::nullopt;
 }
 
+std::optional<BandChannel> parseChannel(std::string_view s) {
+    if (s == "all" || s == "lr") return BandChannel::All;
+    if (s == "left" || s == "l") return BandChannel::Left;
+    if (s == "right" || s == "r") return BandChannel::Right;
+    if (s == "mid" || s == "m") return BandChannel::Mid;
+    if (s == "side" || s == "s") return BandChannel::Side;
+    return std::nullopt;
+}
+
 BandParams parseBand(std::string_view spec) {
     std::vector<std::string_view> parts;
     std::size_t start = 0;
@@ -88,7 +108,9 @@ BandParams parseBand(std::string_view spec) {
         if (colon == std::string_view::npos) break;
         start = colon + 1;
     }
-    if (parts.size() != 4) fail("--band expects TYPE:FREQ:GAIN:Q, got " + std::string(spec));
+    if (parts.size() != 4 && parts.size() != 5) {
+        fail("--band expects TYPE:FREQ:GAIN:Q[:CHANNEL], got " + std::string(spec));
+    }
     const auto type = parseType(parts[0]);
     const auto freq = parseNumber(parts[1]);
     const auto gain = parseNumber(parts[2]);
@@ -103,6 +125,11 @@ BandParams parseBand(std::string_view spec) {
     b.freqHz = *freq;
     b.gainDb = *gain;
     b.q = *q;
+    if (parts.size() == 5) {
+        const auto channel = parseChannel(parts[4]);
+        if (!channel) fail("unknown band channel (all, left, right, mid, side): " + std::string(parts[4]));
+        b.channel = *channel;
+    }
     return b;
 }
 
@@ -141,6 +168,35 @@ Options parseOptions(int argc, char** argv, int first) {
             o.chain.limiter.releaseMs = numberArg(i, argc, argv);
         } else if (a == "--bypass") {
             o.chain.bypass = true;
+        } else if (a == "--no-limiter") {
+            o.chain.limiter.enabled = false;
+        } else if (a == "--bass") {
+            o.chain.tone.bassDb = numberArg(i, argc, argv);
+        } else if (a == "--bass-freq") {
+            o.chain.tone.bassFreqHz = numberArg(i, argc, argv);
+        } else if (a == "--treble") {
+            o.chain.tone.trebleDb = numberArg(i, argc, argv);
+        } else if (a == "--treble-freq") {
+            o.chain.tone.trebleFreqHz = numberArg(i, argc, argv);
+        } else if (a == "--balance") {
+            o.chain.stereo.balance = numberArg(i, argc, argv);
+        } else if (a == "--width") {
+            o.chain.stereo.width = numberArg(i, argc, argv);
+        } else if (a == "--mono") {
+            o.chain.stereo.mono = true;
+        } else if (a == "--comp-threshold") {
+            o.chain.compressor.enabled = true;
+            o.chain.compressor.thresholdDb = numberArg(i, argc, argv);
+        } else if (a == "--comp-ratio") {
+            o.chain.compressor.ratio = numberArg(i, argc, argv);
+        } else if (a == "--comp-attack") {
+            o.chain.compressor.attackMs = numberArg(i, argc, argv);
+        } else if (a == "--comp-release") {
+            o.chain.compressor.releaseMs = numberArg(i, argc, argv);
+        } else if (a == "--comp-knee") {
+            o.chain.compressor.kneeDb = numberArg(i, argc, argv);
+        } else if (a == "--comp-makeup") {
+            o.chain.compressor.makeupDb = numberArg(i, argc, argv);
         } else if (a == "--format") {
             if (i + 1 >= argc) fail("missing value for --format");
             const std::string_view f = argv[++i];
@@ -261,18 +317,23 @@ int cmdResponse(const Options& o) {
     if (!o.positional.empty()) fail("response takes no positional arguments");
     if (o.fs < 8000.0) fail("--fs must be at least 8000");
     const ChainParams p = sanitize(o.chain, o.fs);
-    const EqDesign design = designEq(p.eq, o.fs);
+    const EqDesign design = designEq(p.eq, p.tone, o.fs);
     double preamp = p.preampDb;
-    if (p.autoPreamp) preamp -= std::max(0.0, eqPeakGainDb(design, p.eq, o.fs));
+    if (p.autoPreamp) preamp -= std::max(0.0, eqPeakGainDb(design, o.fs));
 
     const int points = std::max(o.points, 2);
     const double hi = std::min(20000.0, limits::kFreqMaxFsRatio * o.fs);
     std::printf("# fs=%.0f bands=%zu effective_preamp_db=%.4f\n", o.fs, p.eq.count, preamp);
-    std::printf("freq_hz,eq_db,total_db\n");
+    // eq_db covers the bands on every channel; the last four columns add each channel's own bands.
+    std::printf("freq_hz,eq_db,total_db,left_db,right_db,mid_db,side_db\n");
     for (int i = 0; i < points; ++i) {
         const double f = 20.0 * std::pow(hi / 20.0, static_cast<double>(i) / (points - 1));
         const double eq = eqMagnitudeDb(design, f, o.fs);
-        std::printf("%.3f,%.6f,%.6f\n", f, eq, eq + preamp);
+        std::printf("%.3f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n", f, eq, eq + preamp,
+                    eqMagnitudeDb(design, f, o.fs, BandChannel::Left),
+                    eqMagnitudeDb(design, f, o.fs, BandChannel::Right),
+                    eqMagnitudeDb(design, f, o.fs, BandChannel::Mid),
+                    eqMagnitudeDb(design, f, o.fs, BandChannel::Side));
     }
     return 0;
 }

@@ -24,6 +24,22 @@ inline constexpr double kLookaheadMinMs = 0.5;
 inline constexpr double kLookaheadMaxMs = 10.0;
 inline constexpr double kReleaseMinMs = 1.0;
 inline constexpr double kReleaseMaxMs = 1000.0;
+inline constexpr double kBalanceMin = -1.0;
+inline constexpr double kBalanceMax = 1.0;
+inline constexpr double kWidthMin = 0.0;
+inline constexpr double kWidthMax = 2.0;
+inline constexpr double kCompThresholdMinDb = -60.0;
+inline constexpr double kCompThresholdMaxDb = 0.0;
+inline constexpr double kCompRatioMin = 1.0;
+inline constexpr double kCompRatioMax = 20.0;
+inline constexpr double kCompAttackMinMs = 0.1;
+inline constexpr double kCompAttackMaxMs = 200.0;
+inline constexpr double kCompReleaseMinMs = 5.0;
+inline constexpr double kCompReleaseMaxMs = 2000.0;
+inline constexpr double kCompKneeMinDb = 0.0;
+inline constexpr double kCompKneeMaxDb = 24.0;
+inline constexpr double kCompMakeupMinDb = 0.0;
+inline constexpr double kCompMakeupMaxDb = 24.0;
 
 }  // namespace sp::dsp::limits
 

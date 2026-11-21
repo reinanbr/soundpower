@@ -215,20 +215,20 @@ TEST(ParametricEq, HistoryHandoverIntoNewSlotStartsAsPassThrough) {
 }
 
 TEST(ParametricEq, PeakGainFindsTheCurveMaximum) {
-    EXPECT_DOUBLE_EQ(eqPeakGainDb(designEq(EqParams{}, kFs), EqParams{}, kFs), 0.0);
+    EXPECT_DOUBLE_EQ(eqPeakGainDb(designEq(EqParams{}, kFs), kFs), 0.0);
 
     const EqParams single = eqOf({band(FilterType::Peaking, 1000.0, 12.0, 1.0)});
-    EXPECT_NEAR(eqPeakGainDb(designEq(single, kFs), single, kFs), 12.0, 1e-9);
+    EXPECT_NEAR(eqPeakGainDb(designEq(single, kFs), kFs), 12.0, 1e-9);
 
     const EqParams stacked = eqOf({band(FilterType::Peaking, 1000.0, 6.0, 1.0),
                                    band(FilterType::Peaking, 1000.0, 6.0, 1.0)});
-    EXPECT_NEAR(eqPeakGainDb(designEq(stacked, kFs), stacked, kFs), 12.0, 1e-9);
+    EXPECT_NEAR(eqPeakGainDb(designEq(stacked, kFs), kFs), 12.0, 1e-9);
 
     const EqParams cutOnly = eqOf({band(FilterType::Peaking, 1000.0, -6.0, 1.0)});
-    EXPECT_NEAR(eqPeakGainDb(designEq(cutOnly, kFs), cutOnly, kFs), 0.0, 1e-3);
+    EXPECT_NEAR(eqPeakGainDb(designEq(cutOnly, kFs), kFs), 0.0, 1e-3);
 
     const EqParams shelf = eqOf({band(FilterType::LowShelf, 100.0, 8.0, 0.7071)});
-    EXPECT_NEAR(eqPeakGainDb(designEq(shelf, kFs), shelf, kFs), 8.0, 0.05);
+    EXPECT_NEAR(eqPeakGainDb(designEq(shelf, kFs), kFs), 8.0, 0.05);
 }
 
 }  // namespace

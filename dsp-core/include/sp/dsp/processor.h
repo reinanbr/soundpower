@@ -8,9 +8,11 @@
 #include <cstdint>
 #include <vector>
 
+#include "sp/dsp/compressor.h"
 #include "sp/dsp/limiter.h"
 #include "sp/dsp/parametric_eq.h"
 #include "sp/dsp/smoothing.h"
+#include "sp/dsp/stereo.h"
 #include "sp/dsp/triple_buffer.h"
 #include "sp/dsp/types.h"
 
@@ -21,12 +23,15 @@ struct RtParams {
     EqDesign eq{};
     std::uint64_t eqSerial = 0;  ///< changes only when the EQ design changes
     double preampGain = 1.0;     ///< linear, auto-preamp included
+    StereoDesign stereo{};
+    CompressorDesign compressor{};
     LimiterDesign limiter{};
     bool bypass = false;
 };
 
-/// The complete SoundPower chain for one stream: preamp → parametric EQ → limiter, with a
-/// latency-aligned dry path for click-free A/B bypass.
+/// The complete SoundPower chain for one stream: preamp → parametric EQ and tone shelves →
+/// stereo stage → compressor → limiter, with a latency-aligned dry path for click-free A/B
+/// bypass.
 ///
 /// Threading contract:
 ///  - prepare() is control-side and must never run concurrently with process().
@@ -46,9 +51,11 @@ public:
     bool prepare(double sampleRate, std::size_t channels);
 
     /// Publishes new parameters. The audio thread picks them up at its next block and moves to
-    /// them without clicks: preamp ramps over 10 ms, a new EQ curve crossfades over 10 ms,
-    /// bypass crossfades over 20 ms, and a lookahead change fades the output out and in over
-    /// 2 ms each way. Can be called before prepare(); the values are applied there.
+    /// them without clicks: preamp ramps over 10 ms, a new EQ or tone curve crossfades over
+    /// 10 ms, the stereo matrix and bypass ramp over 20 ms, compressor changes follow its
+    /// attack and release, turning the limiter off lets its gain recover with the release
+    /// time, and a lookahead change fades the output out and in over 2 ms each way. Can be
+    /// called before prepare(); the values are applied there.
     void setParams(const ChainParams& params);
 
     /// The parameters last passed to setParams() (unsanitized).
@@ -139,6 +146,8 @@ private:
     LinearRamp fade_;
     Fade fadeState_ = Fade::None;
     std::uint32_t fadeHoldFrames_ = 0;
+    StereoStage stereo_;
+    Compressor compressor_;
     LimiterDesign pendingLimiter_{};
     Limiter limiter_;
 

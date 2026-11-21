@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "sp/dsp/limits.h"
 #include "sp/dsp/math.h"
@@ -24,7 +25,10 @@ std::uint32_t maxLookaheadSamples(double sampleRate) noexcept {
 
 LimiterDesign designLimiter(const LimiterParams& params, double sampleRate) noexcept {
     LimiterDesign d;
-    d.ceiling = dbToGain(params.ceilingDb);
+    // Off: an infinite ceiling never asks for gain reduction, so the gain recovers with the
+    // release time and the delay (latency) stays the same.
+    d.ceiling = params.enabled ? dbToGain(params.ceilingDb)
+                               : std::numeric_limits<double>::infinity();
     const double lookahead = std::round(params.lookaheadMs * sampleRate / 1000.0);
     d.lookahead = std::clamp(static_cast<std::uint32_t>(std::max(lookahead, 1.0)), 1u,
                              std::max(1u, maxLookaheadSamples(sampleRate)));
