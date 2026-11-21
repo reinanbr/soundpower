@@ -16,3 +16,7 @@ sp_realtime_target(sp_dsp_core)
 if(SP_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+
+if(SP_BUILD_TOOLS)
+    add_subdirectory(bench)
+endif()
