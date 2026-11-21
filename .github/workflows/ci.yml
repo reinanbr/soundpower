@@ -14,8 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  dsp-core:
-    name: dsp-core (${{ matrix.toolchain.name }}, ${{ matrix.preset }})
+  host:
+    # dsp-core and effect-lib on x86-64. GCC builds the effect core only; Clang also builds
+    # libsoundpower.so and its AELI tests (the AOSP headers need Clang in C++).
+    name: host (${{ matrix.toolchain.name }}, ${{ matrix.preset }})
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -27,6 +29,8 @@ jobs:
         include:
           - toolchain: { name: gcc, cc: gcc, cxx: g++ }
             preset: host-tsan
+          - toolchain: { name: clang, cc: clang, cxx: clang++ }
+            preset: host-tsan
     env:
       CC: ${{ matrix.toolchain.cc }}
       CXX: ${{ matrix.toolchain.cxx }}
@@ -35,8 +39,13 @@ jobs:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Ninja
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Install Ninja (and the Clang sanitizer runtimes)
+        run: |
+          packages=ninja-build
+          if [ "$CC" = clang ]; then
+            packages="$packages libclang-rt-$(clang -dumpversion | cut -d. -f1)-dev"
+          fi
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends $packages
 
       - name: Reduce ASLR entropy for ThreadSanitizer
         if: matrix.preset == 'host-tsan'
@@ -62,6 +71,81 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Phase 3 adds: effect-lib NDK builds (arm64-v8a, armeabi-v7a) + NEEDED-library check.
+  fuzz:
+    name: fuzz (libFuzzer, ASan + UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Ninja and the Clang runtimes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build \
+            "libclang-rt-$(clang -dumpversion | cut -d. -f1)-dev"
+
+      - name: Configure
+        run: cmake --preset host-fuzz -DSP_WERROR=ON
+
+      - name: Build
+        run: cmake --build --preset host-fuzz --parallel
+
+      - name: Test (includes a fixed-seed fuzz smoke run)
+        run: ctest --preset host-fuzz --parallel 4
+
+      - name: Fuzz the effect command interface
+        run: |
+          mkdir -p corpus
+          build/host-fuzz/effect-lib/fuzz/sp_effect_fuzz -max_total_time=120 \
+            -artifact_prefix=crash- corpus
+
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crashes
+          path: crash-*
+          if-no-files-found: ignore
+
+  android-ndk:
+    # Cross-builds for the device ABIs. The tests need a device (ctest runs them over adb), so CI
+    # only runs the ELF check: exports, NEEDED libraries and 16 KB page alignment.
+    name: android-ndk (${{ matrix.abi }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { abi: arm64-v8a, preset: android-arm64 }
+          - { abi: armeabi-v7a, preset: android-armv7 }
+    env:
+      NDK_VERSION: 28.2.13676358
+      PRESET: ${{ matrix.preset }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Ninja and NDK r28
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: cmake --preset "$PRESET" -DSP_WERROR=ON
+
+      - name: Build
+        run: cmake --build --preset "$PRESET" --parallel
+
+      - name: Check the ELF
+        run: ctest --preset "$PRESET" -R sp_effect_elf_check
+
+      - name: Upload libsoundpower.so
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: libsoundpower-${{ matrix.abi }}
+          path: build/${{ matrix.preset }}/effect-lib/libsoundpower.so
+          if-no-files-found: error
+
   # Phase 4 adds: Magisk module zip as a build artifact.
   # Phase 5 adds: Android app build and unit tests.
