@@ -1,0 +1,6 @@
+# SoundPower: a data directory the audio HAL may read (it holds state.bin, written by the app as
+# root). magiskpolicy prints "Type soundpower_data_file already exists" for the first rule; that
+# message is harmless (verified on Magisk 31.1: the type gets both attributes).
+type soundpower_data_file { file_type data_file_type }
+allow hal_audio_server soundpower_data_file dir { search getattr open read }
+allow hal_audio_server soundpower_data_file file { getattr open read }

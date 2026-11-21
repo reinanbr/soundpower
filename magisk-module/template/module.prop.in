@@ -1,0 +1,6 @@
+id=soundpower
+name=SoundPower
+version=v@SP_VERSION@
+versionCode=@SP_VERSION_CODE@
+author=SoundPower contributors
+description=System-wide parametric equalizer and limiter for music, as an Android audio effect.
