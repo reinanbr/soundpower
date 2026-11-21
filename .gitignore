@@ -8,6 +8,9 @@ compile_commands.json
 
 # Gradle / Android
 .gradle/
+.kotlin/
+/app/build/
+/android-core/*/build/
 local.properties
 captures/
 *.apk
