@@ -29,11 +29,49 @@ TEST(Codec, EncodesMatchGoldenVectors) {
     EXPECT_EQ(encode(SP_PARAM_MASTER, dsp::ChainParams{}), golden("master_default"));
     EXPECT_EQ(encode(SP_PARAM_EQ_STATE, dsp::ChainParams{}), golden("eq_state_empty"));
     EXPECT_EQ(encode(SP_PARAM_LIMITER, dsp::ChainParams{}), golden("limiter_default"));
+    EXPECT_EQ(encode(SP_PARAM_TONE, dsp::ChainParams{}), golden("tone_default"));
+    EXPECT_EQ(encode(SP_PARAM_STEREO, dsp::ChainParams{}), golden("stereo_default"));
+    EXPECT_EQ(encode(SP_PARAM_COMPRESSOR, dsp::ChainParams{}), golden("compressor_default"));
 
     const dsp::ChainParams p = test::exampleParams();
     EXPECT_EQ(encode(SP_PARAM_MASTER, p), golden("master_bypass"));
     EXPECT_EQ(encode(SP_PARAM_EQ_STATE, p), golden("eq_state_3band"));
     EXPECT_EQ(encode(SP_PARAM_LIMITER, p), golden("limiter_custom"));
+
+    const dsp::ChainParams v11 = test::exampleParamsV11();
+    EXPECT_EQ(encode(SP_PARAM_MASTER, v11), golden("master_limiter_off"));
+    EXPECT_EQ(encode(SP_PARAM_TONE, v11), golden("tone_custom"));
+    EXPECT_EQ(encode(SP_PARAM_STEREO, v11), golden("stereo_custom"));
+    EXPECT_EQ(encode(SP_PARAM_COMPRESSOR, v11), golden("compressor_custom"));
+}
+
+TEST(Codec, DecodesProtocol11GoldenVectors) {
+    dsp::ChainParams p;
+    ASSERT_EQ(decodeParam(SP_PARAM_MASTER, golden("master_limiter_off"), p), 0);
+    ASSERT_EQ(decodeParam(SP_PARAM_EQ_STATE, golden("eq_state_3band"), p), 0);
+    ASSERT_EQ(decodeParam(SP_PARAM_LIMITER, golden("limiter_custom"), p), 0);
+    ASSERT_EQ(decodeParam(SP_PARAM_TONE, golden("tone_custom"), p), 0);
+    ASSERT_EQ(decodeParam(SP_PARAM_STEREO, golden("stereo_custom"), p), 0);
+    ASSERT_EQ(decodeParam(SP_PARAM_COMPRESSOR, golden("compressor_custom"), p), 0);
+    test::expectSameParams(p, test::exampleParamsV11());
+
+    // A 1.0 MASTER (no limiter-off bit) turns the limiter back on.
+    ASSERT_EQ(decodeParam(SP_PARAM_MASTER, golden("master_default"), p), 0);
+    EXPECT_TRUE(p.limiter.enabled);
+}
+
+TEST(Codec, BandChannelsRoundTrip) {
+    dsp::ChainParams p;
+    ASSERT_EQ(decodeParam(SP_PARAM_EQ_STATE, golden("eq_state_channels"), p), 0);
+    ASSERT_EQ(p.eq.count, 5u);
+    EXPECT_EQ(p.eq.bands[0].channel, dsp::BandChannel::Left);
+    EXPECT_EQ(p.eq.bands[1].channel, dsp::BandChannel::Right);
+    EXPECT_EQ(p.eq.bands[2].channel, dsp::BandChannel::Side);
+    EXPECT_EQ(p.eq.bands[3].channel, dsp::BandChannel::Mid);
+    EXPECT_EQ(p.eq.bands[4].channel, dsp::BandChannel::All);
+    EXPECT_EQ(p.eq.bands[2].type, dsp::FilterType::HighShelf);
+    EXPECT_EQ(p.eq.bands[2].freqHz, 6000.0);
+    EXPECT_EQ(encode(SP_PARAM_EQ_STATE, p), golden("eq_state_channels"));
 }
 
 TEST(Codec, DecodesGoldenVectors) {
@@ -72,7 +110,9 @@ TEST(Codec, ProtocolInfo) {
     EXPECT_EQ(info.lib_version, (std::uint32_t{SP_VERSION_MAJOR} << 16) |
                                     (std::uint32_t{SP_VERSION_MINOR} << 8) | SP_VERSION_PATCH);
     EXPECT_EQ(info.max_bands, 32u);
-    EXPECT_EQ(info.capabilities, SP_CAP_PARAMETRIC_EQ | SP_CAP_LIMITER);
+    EXPECT_EQ(info.capabilities, SP_CAP_PARAMETRIC_EQ | SP_CAP_LIMITER | SP_CAP_TONE |
+                                     SP_CAP_STEREO | SP_CAP_COMPRESSOR | SP_CAP_LIMITER_SWITCH |
+                                         SP_CAP_BAND_CHANNEL);
 }
 
 TEST(Codec, EncodeFailsWhenTheBufferIsTooSmall) {
@@ -91,6 +131,9 @@ TEST(Codec, OnlyTheSettableIdsDecode) {
     EXPECT_TRUE(isSettable(SP_PARAM_MASTER));
     EXPECT_TRUE(isSettable(SP_PARAM_EQ_STATE));
     EXPECT_TRUE(isSettable(SP_PARAM_LIMITER));
+    EXPECT_TRUE(isSettable(SP_PARAM_TONE));
+    EXPECT_TRUE(isSettable(SP_PARAM_STEREO));
+    EXPECT_TRUE(isSettable(SP_PARAM_COMPRESSOR));
     std::vector<std::uint8_t> big(64, 0);
     for (const std::uint32_t id : {std::uint32_t{SP_PARAM_PROTOCOL_INFO}, std::uint32_t{SP_PARAM_STATUS},
                                    std::uint32_t{SP_PARAM_SPECTRUM}, 0u, 0x1000u, 0xffffffffu}) {
@@ -107,7 +150,10 @@ TEST(Codec, ShortPayloadsAreRejectedAndLeaveParamsUnchanged) {
     const dsp::ChainParams before = test::exampleParams();
     for (const auto& [id, name] : {std::pair{SP_PARAM_MASTER, "master_default"},
                                    std::pair{SP_PARAM_EQ_STATE, "eq_state_3band"},
-                                   std::pair{SP_PARAM_LIMITER, "limiter_default"}}) {
+                                   std::pair{SP_PARAM_LIMITER, "limiter_default"},
+                                   std::pair{SP_PARAM_TONE, "tone_custom"},
+                                   std::pair{SP_PARAM_STEREO, "stereo_custom"},
+                                   std::pair{SP_PARAM_COMPRESSOR, "compressor_custom"}}) {
         SCOPED_TRACE(name);
         const std::vector<std::uint8_t> full = golden(name);
         for (std::size_t n = 0; n < full.size(); ++n) {
@@ -157,6 +203,11 @@ TEST(Codec, RejectsTooManyBandsAndUnknownTypes) {
     v[4 + 16] = SP_BAND_TYPE_COUNT;  // second band's type
     EXPECT_EQ(decodeParam(SP_PARAM_EQ_STATE, v, p), -EINVAL);
     EXPECT_EQ(p.eq.count, 0u);  // unchanged
+
+    v = golden("eq_state_3band");
+    v[4 + 2] = SP_BAND_CHANNEL_COUNT;  // first band's channel
+    EXPECT_EQ(decodeParam(SP_PARAM_EQ_STATE, v, p), -EINVAL);
+    EXPECT_EQ(p.eq.count, 0u);
 }
 
 TEST(Codec, ThirtyTwoBandsRoundTrip) {

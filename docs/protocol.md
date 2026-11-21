@@ -1,4 +1,8 @@
-# SoundPower parameter protocol — version 1.0
+# SoundPower parameter protocol — version 1.1
+
+Version 1.1 adds `TONE`, `STEREO` and `COMPRESSOR`, the `MASTER` flag that turns the limiter off,
+and the matching capability bits. A 1.1 controller sends the new IDs only when `PROTOCOL_INFO`
+reports their capability; a 1.0 effect skips their `state.bin` entries and ignores the new flag.
 
 This document is the contract between `libsoundpower.so` and anything that controls it (the app, tests,
 the host harness). Its machine-readable counterpart is
@@ -82,17 +86,25 @@ Out-of-range numeric values are **clamped**, not rejected. `GET_PARAM` returns t
 | `0x0100` | `MASTER` | SET / GET | 8 |
 | `0x0200` | `EQ_STATE` | SET / GET | 4 + 16·count |
 | `0x0300` | `LIMITER` | SET / GET | 12 |
-| `0x1000`–`0x1FFF` | reserved for phase 6 modules (convolver, multiband compressor, bass, loudness, width, crossfeed) | | |
+| `0x0400` | `TONE` (1.1) | SET / GET | 20 |
+| `0x0500` | `STEREO` (1.1) | SET / GET | 12 |
+| `0x0600` | `COMPRESSOR` (1.1) | SET / GET | 28 |
+| `0x1000`–`0x1FFF` | reserved for later modules (convolver, multiband compressor, loudness, crossfeed, psychoacoustic bass) | | |
 
 ### `0x0001 PROTOCOL_INFO` (GET)
 
 | Offset | Type | Field |
 |---|---|---|
 | 0 | u16 | `major` (1) |
-| 2 | u16 | `minor` (0) |
+| 2 | u16 | `minor` (1) |
 | 4 | u32 | `lib_version`: `(major << 16) \| (minor << 8) \| patch` of `VERSION` |
 | 8 | u32 | `max_bands` (32) |
 | 12 | u32 | `capabilities`: bitmask, see `SP_CAP_*` |
+
+Capabilities: bit 0 parametric EQ, 1 limiter, 2 spectrum, 3 convolver, 4 multiband compressor,
+5 psychoacoustic bass, 6 loudness, 7 (reserved, was "width"), 8 crossfeed, 9 `TONE`, 10 `STEREO`,
+11 `COMPRESSOR`, 12 the limiter-off flag, 13 band channels. A 1.1 library reports bits 0, 1
+and 9–13.
 
 ### `0x0002 STATUS` (GET)
 
@@ -122,11 +134,15 @@ samples from a lock-free ring buffer that `process()` fills.
 
 | Offset | Type | Field | Range / default |
 |---|---|---|---|
-| 0 | u32 | `flags`: bit 0 bypass (A/B), bit 1 auto-preamp | default `0x2` |
+| 0 | u32 | `flags`: bit 0 bypass (A/B), bit 1 auto-preamp, bit 2 limiter off (1.1) | default `0x2` |
 | 4 | f32 | `preamp_db` | −30…+30, default 0 |
 
 With auto-preamp on, the effect adds `−max(0, peak of the EQ curve in dB)` to `preamp_db`, so the
-EQ alone cannot push a full-scale signal over 0 dBFS.
+EQ alone cannot push a full-scale signal over 0 dBFS. The tone shelves count as part of the EQ
+curve.
+
+With bit 2 set the limiter stops reducing gain; its gain recovers with the release time, and its
+delay stays, so the latency does not change. A 1.0 effect ignores the bit and keeps limiting.
 
 ### `0x0200 EQ_STATE` (SET / GET)
 
@@ -143,7 +159,8 @@ Each band is 16 bytes:
 |---|---|---|---|
 | 0 | u8 | `type` | see below |
 | 1 | u8 | `enabled` | 0 or 1 (any non-zero value reads as 1) |
-| 2 | u16 | reserved | written as 0, ignored on read |
+| 2 | u8 | `channel` (1.1) | see below; a 1.0 library ignores it |
+| 3 | u8 | reserved | written as 0, ignored on read |
 | 4 | f32 | `freq_hz` | 10 … 0.49·fs (clamped per instance) |
 | 8 | f32 | `gain_db` | −30 … +30 (ignored by pass, notch and band-pass types) |
 | 12 | f32 | `q` | 0.05 … 40 |
@@ -160,9 +177,26 @@ Band types (RBJ Audio EQ Cookbook designs):
 | 5 | notch |
 | 6 | band pass (0 dB peak) |
 
+Band channels (1.1; before, the byte was reserved and written as 0, so 1.0 data reads as "all"):
+
+| Value | Channels the band filters |
+|---|---|
+| 0 | all |
+| 1 | left |
+| 2 | right |
+| 3 | mid, (L+R)/2 |
+| 4 | side, (L−R)/2 |
+
+Bands run in order. A mid or side band (or a run of them) converts the first two channels to mid
+and side, filters one of them and converts back, so it changes width-related content only. On a
+mono stream only "all" and "mid" bands apply; on more than two channels the routed bands use the
+first two. A value above 4 makes the whole message `-EINVAL`. A 1.0 library applies every band
+to all channels, so the app sends routed bands only to an effect reporting bit 13 and disables
+them otherwise. Auto-preamp takes, at each frequency, all + max(left, right) + max(mid, side).
+
 ### `0x0300 LIMITER` (SET / GET)
 
-The limiter is always active. Only its settings change.
+The limiter is on unless `MASTER` bit 2 turns it off (1.1).
 
 | Offset | Type | Field | Range / default |
 |---|---|---|---|
@@ -172,6 +206,48 @@ The limiter is always active. Only its settings change.
 
 Changing `lookahead_ms` changes the effect's latency. The output fades out and back in over about 2 ms
 around the change.
+
+### `0x0400 TONE` (SET / GET, 1.1)
+
+Bass and treble: a low shelf and a high shelf (Q 0.7071, shelf slope 1) after the EQ bands. They
+are part of the EQ curve: they crossfade with it and count for auto-preamp.
+
+| Offset | Type | Field | Range / default |
+|---|---|---|---|
+| 0 | u32 | `flags`: bit 0 enabled | default `0x1` |
+| 4 | f32 | `bass_db` | −30 … +30, default 0 |
+| 8 | f32 | `bass_freq_hz` | 10 Hz … 0.49 fs, default 100 |
+| 12 | f32 | `treble_db` | −30 … +30, default 0 |
+| 16 | f32 | `treble_freq_hz` | 10 Hz … 0.49 fs, default 8000 |
+
+### `0x0500 STEREO` (SET / GET, 1.1)
+
+After the EQ, for stereo streams only. With M = (L + R) / 2 and S = (L − R) / 2 the stage outputs
+L′ = M + w·S and R′ = M − w·S (w = 0 when mono is set), then balance attenuates the opposite
+channel linearly (balance +0.5 halves the left channel, +1 silences it). Changes ramp over 20 ms.
+
+| Offset | Type | Field | Range / default |
+|---|---|---|---|
+| 0 | u32 | `flags`: bit 0 mono downmix | default `0x0` |
+| 4 | f32 | `balance` | −1 (left only) … +1 (right only), default 0 |
+| 8 | f32 | `width` | 0 (mono) … 2, default 1 (unchanged) |
+
+### `0x0600 COMPRESSOR` (SET / GET, 1.1)
+
+Feed-forward, stereo-linked downward compressor before the limiter. The detector is the largest
+absolute sample of the frame; the static curve has a quadratic soft knee of `knee_db` centred on
+the threshold; the gain moves toward its target in dB with the attack time when it falls and the
+release time when it rises. Turning it off releases to 0 dB the same way.
+
+| Offset | Type | Field | Range / default |
+|---|---|---|---|
+| 0 | u32 | `flags`: bit 0 enabled | default `0x0` |
+| 4 | f32 | `threshold_db` | −60 … 0, default −18 |
+| 8 | f32 | `ratio` | 1 … 20, default 3 |
+| 12 | f32 | `attack_ms` | 0.1 … 200, default 10 |
+| 16 | f32 | `release_ms` | 5 … 2000, default 150 |
+| 20 | f32 | `knee_db` | 0 … 24, default 6 |
+| 24 | f32 | `makeup_db` | 0 … 24, default 0 |
 
 ## Persisted state file (`state.bin`)
 
@@ -205,10 +281,17 @@ bytes). They are generated by `protocol/vectors/generate.py`, which packs the va
 |---|---|
 | `master_default`, `master_bypass` | `MASTER` defaults; bypass on, auto-preamp off, −6.5 dB preamp |
 | `eq_state_empty`, `eq_state_3band` | `EQ_STATE` with 0 bands; low shelf, peaking and a disabled high pass |
+| `eq_state_channels` | `EQ_STATE` 1.1 with left, right, side, mid and all bands |
 | `limiter_default`, `limiter_custom` | `LIMITER` defaults; −3 dB / 5 ms / 250 ms |
+| `master_limiter_off` | `MASTER` (1.1): auto-preamp on, limiter off, +3.25 dB preamp |
+| `tone_default`, `tone_custom` | `TONE` defaults; off, bass +7.5 dB at 62.5 Hz, treble −3 dB at 12 kHz |
+| `stereo_default`, `stereo_custom` | `STEREO` defaults; mono, balance −0.25, width 1.5 |
+| `compressor_default`, `compressor_custom` | `COMPRESSOR` defaults; on, −24 dB, 4.5:1, 2.5 ms, 400 ms, hard knee, +6 dB |
 | `status_example` | A `STATUS` reply |
 | `state_file_example` | `state.bin` with `MASTER`, `EQ_STATE` and `LIMITER` |
 | `state_file_unknown_entry` | The same from a newer minor version, with an extra unknown entry |
+| `state_file_v1_1` | `state.bin` 1.1: the six settable IDs, as the 1.1 library writes them |
 
 The effect-lib tests embed these files at configure time and check both directions (encode and
-decode). The Kotlin tests (phase 5) must produce identical bytes.
+decode). The Kotlin tests (`android-core:protocol`) read the same files and must produce identical
+bytes.

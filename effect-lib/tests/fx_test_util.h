@@ -74,7 +74,21 @@ inline dsp::ChainParams exampleParams() {
     p.eq.bands[0] = {dsp::FilterType::LowShelf, true, 80.0, 6.0, 0.75};
     p.eq.bands[1] = {dsp::FilterType::Peaking, true, 1000.0, -3.5, 1.5};
     p.eq.bands[2] = {dsp::FilterType::HighPass, false, 30.0, 0.0, 0.5};
-    p.limiter = {-3.0, 5.0, 250.0};
+    p.limiter = {-3.0, 5.0, 250.0, true};
+    return p;
+}
+
+/// The parameters of the protocol 1.1 vectors (master_limiter_off, eq_state_3band,
+/// limiter_custom, tone_custom, stereo_custom, compressor_custom; state_file_v1_1).
+inline dsp::ChainParams exampleParamsV11() {
+    dsp::ChainParams p = exampleParams();
+    p.bypass = false;
+    p.autoPreamp = true;
+    p.preampDb = 3.25;
+    p.limiter.enabled = false;
+    p.tone = {false, 7.5, 62.5, -3.0, 12000.0};
+    p.stereo = {-0.25, 1.5, true};
+    p.compressor = {true, -24.0, 4.5, 2.5, 400.0, 0.0, 6.0};
     return p;
 }
 
@@ -90,10 +104,27 @@ inline void expectSameParams(const dsp::ChainParams& a, const dsp::ChainParams& 
         EXPECT_EQ(a.eq.bands[i].freqHz, b.eq.bands[i].freqHz);
         EXPECT_EQ(a.eq.bands[i].gainDb, b.eq.bands[i].gainDb);
         EXPECT_EQ(a.eq.bands[i].q, b.eq.bands[i].q);
+        EXPECT_EQ(a.eq.bands[i].channel, b.eq.bands[i].channel);
     }
     EXPECT_EQ(a.limiter.ceilingDb, b.limiter.ceilingDb);
     EXPECT_EQ(a.limiter.lookaheadMs, b.limiter.lookaheadMs);
     EXPECT_EQ(a.limiter.releaseMs, b.limiter.releaseMs);
+    EXPECT_EQ(a.limiter.enabled, b.limiter.enabled);
+    EXPECT_EQ(a.tone.enabled, b.tone.enabled);
+    EXPECT_EQ(a.tone.bassDb, b.tone.bassDb);
+    EXPECT_EQ(a.tone.bassFreqHz, b.tone.bassFreqHz);
+    EXPECT_EQ(a.tone.trebleDb, b.tone.trebleDb);
+    EXPECT_EQ(a.tone.trebleFreqHz, b.tone.trebleFreqHz);
+    EXPECT_EQ(a.stereo.balance, b.stereo.balance);
+    EXPECT_EQ(a.stereo.width, b.stereo.width);
+    EXPECT_EQ(a.stereo.mono, b.stereo.mono);
+    EXPECT_EQ(a.compressor.enabled, b.compressor.enabled);
+    EXPECT_EQ(a.compressor.thresholdDb, b.compressor.thresholdDb);
+    EXPECT_EQ(a.compressor.ratio, b.compressor.ratio);
+    EXPECT_EQ(a.compressor.attackMs, b.compressor.attackMs);
+    EXPECT_EQ(a.compressor.releaseMs, b.compressor.releaseMs);
+    EXPECT_EQ(a.compressor.kneeDb, b.compressor.kneeDb);
+    EXPECT_EQ(a.compressor.makeupDb, b.compressor.makeupDb);
 }
 
 /// A writable path unique to the running test (works on the host and on Android).

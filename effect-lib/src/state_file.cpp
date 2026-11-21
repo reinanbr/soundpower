@@ -79,8 +79,9 @@ StateFileResult applyStateFile(std::span<const std::uint8_t> file,
 }
 
 std::vector<std::uint8_t> encodeStateFile(const dsp::ChainParams& params) {
-    constexpr std::array<std::uint32_t, 3> kIds = {SP_PARAM_MASTER, SP_PARAM_EQ_STATE,
-                                                   SP_PARAM_LIMITER};
+    constexpr std::array<std::uint32_t, 6> kIds = {SP_PARAM_MASTER,     SP_PARAM_EQ_STATE,
+                                                   SP_PARAM_LIMITER,    SP_PARAM_TONE,
+                                                   SP_PARAM_STEREO,     SP_PARAM_COMPRESSOR};
     std::vector<std::uint8_t> out(kHeaderSize);
     std::memcpy(out.data(), SP_STATE_FILE_MAGIC, 4);
     const std::uint16_t major = SP_PROTOCOL_VERSION_MAJOR;

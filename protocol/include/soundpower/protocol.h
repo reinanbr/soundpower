@@ -1,5 +1,5 @@
 /*
- * SoundPower parameter protocol, version 1.0.
+ * SoundPower parameter protocol, version 1.1.
  *
  * Copyright (C) 2026 SoundPower contributors
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -24,7 +24,7 @@ extern "C" {
 /* ---- Versions ------------------------------------------------------------------------------ */
 
 #define SP_PROTOCOL_VERSION_MAJOR 1
-#define SP_PROTOCOL_VERSION_MINOR 0
+#define SP_PROTOCOL_VERSION_MINOR 1
 
 /* ---- Effect identity ----------------------------------------------------------------------- */
 
@@ -76,6 +76,31 @@ extern "C" {
 #define SP_LIMITER_RELEASE_MIN_MS 1.0f
 #define SP_LIMITER_RELEASE_MAX_MS 1000.0f
 #define SP_LIMITER_RELEASE_DEFAULT_MS 50.0f
+/* Since 1.1. Tone gains and frequencies use the band limits above. */
+#define SP_TONE_BASS_FREQ_DEFAULT_HZ 100.0f
+#define SP_TONE_TREBLE_FREQ_DEFAULT_HZ 8000.0f
+#define SP_BALANCE_MIN (-1.0f)
+#define SP_BALANCE_MAX 1.0f
+#define SP_WIDTH_MIN 0.0f
+#define SP_WIDTH_MAX 2.0f
+#define SP_COMP_THRESHOLD_MIN_DB (-60.0f)
+#define SP_COMP_THRESHOLD_MAX_DB 0.0f
+#define SP_COMP_THRESHOLD_DEFAULT_DB (-18.0f)
+#define SP_COMP_RATIO_MIN 1.0f
+#define SP_COMP_RATIO_MAX 20.0f
+#define SP_COMP_RATIO_DEFAULT 3.0f
+#define SP_COMP_ATTACK_MIN_MS 0.1f
+#define SP_COMP_ATTACK_MAX_MS 200.0f
+#define SP_COMP_ATTACK_DEFAULT_MS 10.0f
+#define SP_COMP_RELEASE_MIN_MS 5.0f
+#define SP_COMP_RELEASE_MAX_MS 2000.0f
+#define SP_COMP_RELEASE_DEFAULT_MS 150.0f
+#define SP_COMP_KNEE_MIN_DB 0.0f
+#define SP_COMP_KNEE_MAX_DB 24.0f
+#define SP_COMP_KNEE_DEFAULT_DB 6.0f
+#define SP_COMP_MAKEUP_MIN_DB 0.0f
+#define SP_COMP_MAKEUP_MAX_DB 24.0f
+#define SP_COMP_MAKEUP_DEFAULT_DB 0.0f
 
 /* ---- Parameter IDs ------------------------------------------------------------------------- */
 
@@ -86,7 +111,10 @@ enum sp_param_id {
     SP_PARAM_MASTER = 0x0100,        /* SET / GET */
     SP_PARAM_EQ_STATE = 0x0200,      /* SET / GET */
     SP_PARAM_LIMITER = 0x0300,       /* SET / GET */
-    /* 0x1000 - 0x1FFF reserved for phase 6 modules */
+    SP_PARAM_TONE = 0x0400,          /* SET / GET, since 1.1 */
+    SP_PARAM_STEREO = 0x0500,        /* SET / GET, since 1.1 */
+    SP_PARAM_COMPRESSOR = 0x0600,    /* SET / GET, since 1.1 */
+    /* 0x1000 - 0x1FFF reserved for later modules (convolver, multiband compressor, ...) */
 };
 
 /* ---- Capabilities (PROTOCOL_INFO.capabilities) --------------------------------------------- */
@@ -96,10 +124,15 @@ enum sp_param_id {
 #define SP_CAP_SPECTRUM (1u << 2)
 #define SP_CAP_CONVOLVER (1u << 3)
 #define SP_CAP_MULTIBAND_COMP (1u << 4)
-#define SP_CAP_BASS (1u << 5)
+#define SP_CAP_BASS (1u << 5)         /* psychoacoustic bass (not the TONE bass shelf) */
 #define SP_CAP_LOUDNESS (1u << 6)
-#define SP_CAP_STEREO_WIDTH (1u << 7)
+#define SP_CAP_STEREO_WIDTH (1u << 7) /* reserved, never set: STEREO uses SP_CAP_STEREO */
 #define SP_CAP_CROSSFEED (1u << 8)
+#define SP_CAP_TONE (1u << 9)           /* TONE, since 1.1 */
+#define SP_CAP_STEREO (1u << 10)        /* STEREO: balance, width, mono; since 1.1 */
+#define SP_CAP_COMPRESSOR (1u << 11)    /* COMPRESSOR, since 1.1 */
+#define SP_CAP_LIMITER_SWITCH (1u << 12) /* SP_MASTER_FLAG_LIMITER_OFF, since 1.1 */
+#define SP_CAP_BAND_CHANNEL (1u << 13)   /* sp_band_t.channel, since 1.1 */
 
 /* ---- Band types (values match sp::dsp::FilterType) ----------------------------------------- */
 
@@ -114,10 +147,28 @@ enum sp_band_type {
     SP_BAND_TYPE_COUNT = 7,
 };
 
+/* ---- Band channels (values match sp::dsp::BandChannel) ------------------------------------- */
+
+/* Mid and side are (L+R)/2 and (L-R)/2. On a mono stream only ALL and MID bands apply. A 1.0
+ * effect reads the field as reserved and applies every band to all channels. */
+enum sp_band_channel {
+    SP_BAND_CHANNEL_ALL = 0,
+    SP_BAND_CHANNEL_LEFT = 1,
+    SP_BAND_CHANNEL_RIGHT = 2,
+    SP_BAND_CHANNEL_MID = 3,
+    SP_BAND_CHANNEL_SIDE = 4,
+    SP_BAND_CHANNEL_COUNT = 5,
+};
+
 /* ---- Flags --------------------------------------------------------------------------------- */
 
 #define SP_MASTER_FLAG_BYPASS (1u << 0)
 #define SP_MASTER_FLAG_AUTO_PREAMP (1u << 1)
+#define SP_MASTER_FLAG_LIMITER_OFF (1u << 2) /* since 1.1; 1.0 effects ignore it */
+#define SP_TONE_FLAG_ENABLED (1u << 0)
+#define SP_TONE_FLAGS_DEFAULT SP_TONE_FLAG_ENABLED
+#define SP_STEREO_FLAG_MONO (1u << 0)
+#define SP_COMPRESSOR_FLAG_ENABLED (1u << 0)
 #define SP_MASTER_FLAGS_DEFAULT SP_MASTER_FLAG_AUTO_PREAMP
 
 #define SP_STATUS_FLAG_BYPASSED (1u << 0)
@@ -167,7 +218,8 @@ typedef struct sp_master {
 typedef struct sp_band {
     uint8_t type; /* enum sp_band_type */
     uint8_t enabled;
-    uint16_t reserved;
+    uint8_t channel; /* enum sp_band_channel; since 1.1, reserved (0) before */
+    uint8_t reserved;
     float freq_hz;
     float gain_db;
     float q;
@@ -185,12 +237,42 @@ typedef struct sp_limiter {
     float release_ms;
 } sp_limiter_t;
 
+/* Since 1.1: a low shelf and a high shelf after the EQ bands (Q 0.7071). */
+typedef struct sp_tone {
+    uint32_t flags; /* SP_TONE_FLAG_* */
+    float bass_db;
+    float bass_freq_hz;
+    float treble_db;
+    float treble_freq_hz;
+} sp_tone_t;
+
+/* Since 1.1: balance (-1 left only .. +1 right only) and mid/side width (0 mono, 1 unchanged). */
+typedef struct sp_stereo {
+    uint32_t flags; /* SP_STEREO_FLAG_* */
+    float balance;
+    float width;
+} sp_stereo_t;
+
+/* Since 1.1: feed-forward, stereo-linked, soft knee. */
+typedef struct sp_compressor {
+    uint32_t flags; /* SP_COMPRESSOR_FLAG_* */
+    float threshold_db;
+    float ratio;
+    float attack_ms;
+    float release_ms;
+    float knee_db;
+    float makeup_db;
+} sp_compressor_t;
+
 #define SP_PROTOCOL_INFO_SIZE 16u
 #define SP_STATUS_SIZE 48u
 #define SP_MASTER_SIZE 8u
 #define SP_BAND_SIZE 16u
 #define SP_EQ_STATE_HEADER_SIZE 4u
 #define SP_LIMITER_SIZE 12u
+#define SP_TONE_SIZE 20u
+#define SP_STEREO_SIZE 12u
+#define SP_COMPRESSOR_SIZE 28u
 #define SP_EQ_STATE_SIZE(count) (SP_EQ_STATE_HEADER_SIZE + SP_BAND_SIZE * (count))
 
 #ifdef __cplusplus
@@ -205,6 +287,9 @@ SP_STATIC_ASSERT(sizeof(sp_status_t) == SP_STATUS_SIZE, "STATUS layout");
 SP_STATIC_ASSERT(sizeof(sp_master_t) == SP_MASTER_SIZE, "MASTER layout");
 SP_STATIC_ASSERT(sizeof(sp_band_t) == SP_BAND_SIZE, "band layout");
 SP_STATIC_ASSERT(sizeof(sp_limiter_t) == SP_LIMITER_SIZE, "LIMITER layout");
+SP_STATIC_ASSERT(sizeof(sp_tone_t) == SP_TONE_SIZE, "TONE layout");
+SP_STATIC_ASSERT(sizeof(sp_stereo_t) == SP_STEREO_SIZE, "STEREO layout");
+SP_STATIC_ASSERT(sizeof(sp_compressor_t) == SP_COMPRESSOR_SIZE, "COMPRESSOR layout");
 SP_STATIC_ASSERT(SP_EQ_STATE_SIZE(SP_MAX_BANDS) <= SP_MAX_MESSAGE_BYTES, "EQ_STATE fits a message");
 
 #endif /* SOUNDPOWER_PROTOCOL_H */

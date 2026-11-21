@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 SoundPower contributors
 //
-// Protocol v1 payloads (protocol/include/soundpower/protocol.h) <-> dsp-core parameter types.
+// Protocol 1.x payloads (protocol/include/soundpower/protocol.h) <-> dsp-core parameter types.
 // Pure functions: no allocation, no I/O, no Android headers. Payloads are little-endian and
 // are (de)serialized field by field, so buffers need no particular alignment.
 #pragma once
@@ -14,7 +14,7 @@
 
 namespace sp::fx {
 
-/// True for the IDs a controller may SET (MASTER, EQ_STATE, LIMITER).
+/// True for the IDs a controller may SET (MASTER, EQ_STATE, LIMITER, TONE, STEREO, COMPRESSOR).
 [[nodiscard]] bool isSettable(std::uint32_t id) noexcept;
 
 /// Decodes a SET payload for `id` and updates only the fields that ID covers. Accepts a
