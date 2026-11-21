@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Five EQ bars (x 25..83, y 30..76) inside the 66 dp safe zone of the 108 dp adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FF7FD1C7" android:pathData="M27,52h6a2,2 0,0 1,2 2v22h-10v-22a2,2 0,0 1,2 -2z" />
+    <path android:fillColor="#FF7FD1C7" android:pathData="M39,38h6a2,2 0,0 1,2 2v36h-10v-36a2,2 0,0 1,2 -2z" />
+    <path android:fillColor="#FFF4F1E8" android:pathData="M51,30h6a2,2 0,0 1,2 2v44h-10v-44a2,2 0,0 1,2 -2z" />
+    <path android:fillColor="#FF7FD1C7" android:pathData="M63,44h6a2,2 0,0 1,2 2v30h-10v-30a2,2 0,0 1,2 -2z" />
+    <path android:fillColor="#FF7FD1C7" android:pathData="M75,56h6a2,2 0,0 1,2 2v18h-10v-18a2,2 0,0 1,2 -2z" />
+</vector>

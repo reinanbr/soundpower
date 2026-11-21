@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SoundPower</string>
+
+    <!-- Setup -->
+    <string name="setup_title">Set up SoundPower</string>
+    <string name="setup_intro">SoundPower is an audio effect inside the system audio service. A Magisk module installs it; this app installs that module and then controls the effect.</string>
+    <string name="setup_root">Root access</string>
+    <string name="setup_magisk">Magisk</string>
+    <string name="setup_module">Module</string>
+    <string name="setup_effect">Audio effect</string>
+    <string name="setup_checking">Checking…</string>
+    <string name="setup_root_granted">Granted</string>
+    <string name="setup_root_denied">Denied</string>
+    <string name="setup_magisk_version">%1$s (%2$d)</string>
+    <string name="setup_magisk_missing">Not found</string>
+    <string name="setup_magisk_old">%1$s is too old; 24.0 or newer is needed</string>
+    <string name="setup_module_missing">Not installed</string>
+    <string name="setup_module_installed">%1$s</string>
+    <string name="setup_module_outdated">%1$s installed; this app has %2$s</string>
+    <string name="setup_module_pending">%1$s, active after a reboot</string>
+    <string name="setup_module_disabled">%1$s, disabled</string>
+    <string name="setup_module_removing">%1$s, removed at the next reboot</string>
+    <string name="setup_effect_loaded">Loaded: library %1$s, protocol %2$d.%3$d</string>
+    <string name="setup_effect_missing">Not loaded</string>
+    <string name="setup_effect_failed">Registered, but cannot be controlled: %1$s</string>
+    <string name="setup_effect_incompatible">Protocol %1$d.%2$d; this app needs %3$d.x</string>
+
+    <string name="step_no_root">Allow SoundPower in Magisk\'s Superuser list, then try again.</string>
+    <string name="step_no_magisk">SoundPower is installed with a Magisk module, and needs Magisk 24.0 or newer.</string>
+    <string name="step_install">Install the SoundPower module. It patches the audio effects configuration systemlessly; uninstalling it in Magisk undoes everything.</string>
+    <string name="step_update">Update the module to the version that matches this app.</string>
+    <string name="step_reboot">Reboot to load the module.</string>
+    <string name="step_disabled">The module is disabled. If audio crashed during boot, the module\'s watchdog disabled it: see log/boot.log in the module directory before enabling it again.</string>
+    <string name="step_not_loaded">The module is installed, but the audio service has not loaded the effect. Reboot if you just installed or enabled it; otherwise see diag.txt in the module directory.</string>
+    <string name="step_incompatible">The effect and this app speak different protocol versions. Install the module that comes with this app.</string>
+    <string name="step_ready">Everything is in place.</string>
+
+    <string name="action_retry">Try again</string>
+    <string name="action_recheck">Check again</string>
+    <string name="action_install">Install module</string>
+    <string name="action_update">Update module</string>
+    <string name="action_reboot">Reboot now</string>
+    <string name="action_enable">Enable module</string>
+    <string name="action_open_eq">Open the equalizer</string>
+    <string name="install_log">Installer output</string>
+    <string name="install_failed">The installation failed; see the output above.</string>
+    <string name="state_ok">OK</string>
+    <string name="state_problem">Needs attention</string>
+
+    <!-- Equalizer -->
+    <string name="eq_enabled">Enabled</string>
+    <string name="eq_setup">Setup</string>
+    <string name="eq_status">Status</string>
+    <string name="eq_stream_detail">%1$d Hz, %2$d ch, CPU %3$.1f %% (peak %4$.1f %%)</string>
+    <string name="eq_no_streams">No music is playing through the effect.</string>
+    <string name="eq_bypassed">Bypassed</string>
+    <string name="eq_status_unknown">Status unavailable</string>
+    <string name="eq_effect_error">Cannot reach the effect: %1$s</string>
+    <string name="eq_persist_error">Not saved for the next boot: %1$s</string>
+    <string name="eq_preamp">Preamp</string>
+    <string name="eq_auto_preamp">Auto preamp</string>
+    <string name="eq_auto_preamp_hint">Lowers the level by the largest boost, so the curve cannot clip.</string>
+    <string name="eq_bands">Bands</string>
+    <string name="eq_reset">Reset to flat</string>
+    <string name="eq_not_graphic">The saved curve is not a 10-band layout.</string>
+    <string name="eq_use_graphic">Use the 10-band equalizer</string>
+    <string name="eq_band_hz">%1$s Hz</string>
+    <string name="gain_db">%1$+.1f dB</string>
+
+    <plurals name="instances_in_dumpsys">
+        <item quantity="one">%1$d instance in dumpsys media.audio_flinger</item>
+        <item quantity="other">%1$d instances in dumpsys media.audio_flinger</item>
+    </plurals>
+    <plurals name="instances_in_service">
+        <item quantity="one">%1$d instance in the audio service, including the control instance of this app</item>
+        <item quantity="other">%1$d instances in the audio service, including the control instance of this app</item>
+    </plurals>
+    <plurals name="eq_streams">
+        <item quantity="one">Processing %1$d stream</item>
+        <item quantity="other">Processing %1$d streams</item>
+    </plurals>
+</resources>
