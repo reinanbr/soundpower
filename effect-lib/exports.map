@@ -1,0 +1,9 @@
+/* libsoundpower.so exports exactly one symbol: the effect library descriptor that the Android
+ * effects factory looks up with dlsym("AELI"). Everything else, including the statically linked
+ * C++ runtime, stays local. */
+{
+  global:
+    AELI;
+  local:
+    *;
+};
