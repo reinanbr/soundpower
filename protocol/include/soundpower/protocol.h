@@ -50,11 +50,13 @@ extern "C" {
 #define SP_STATE_FILE SP_DATA_DIR "/state.bin"
 #define SP_IR_DIR SP_DATA_DIR "/ir"
 #define SP_STATE_FILE_MAGIC "SPST"
+#define SP_STATE_FILE_MAX_BYTES 65536u
 
 /* ---- Limits -------------------------------------------------------------------------------- */
 
 #define SP_MAX_BANDS 32
 #define SP_MAX_MESSAGE_BYTES 1024
+#define SP_MAX_INSTANCES 64 /* live effect instances per process */
 
 #define SP_FREQ_MIN_HZ 10.0f
 #define SP_FREQ_MAX_FS_RATIO 0.49f /* freq_hz is clamped to fs * this ratio */
@@ -122,6 +124,10 @@ enum sp_band_type {
 #define SP_STATUS_FLAG_DUPLICATE_SESSION (1u << 1)
 #define SP_STATUS_FLAG_NONFINITE_INPUT (1u << 2)
 
+/* STATUS.format values: Android's audio_format_t codes for the formats the effect accepts. */
+#define SP_FORMAT_PCM_16_BIT 0x1u
+#define SP_FORMAT_PCM_FLOAT 0x5u
+
 enum sp_instance_state {
     SP_STATE_UNINITIALIZED = 0,
     SP_STATE_INITIALIZED = 1,
@@ -185,7 +191,7 @@ typedef struct sp_limiter {
 #define SP_BAND_SIZE 16u
 #define SP_EQ_STATE_HEADER_SIZE 4u
 #define SP_LIMITER_SIZE 12u
-#define SP_EQ_STATE_SIZE(count) (SP_EQ_STATE_HEADER_SIZE + SP_BAND_SIZE * (uint32_t)(count))
+#define SP_EQ_STATE_SIZE(count) (SP_EQ_STATE_HEADER_SIZE + SP_BAND_SIZE * (count))
 
 #ifdef __cplusplus
 } /* extern "C" */
