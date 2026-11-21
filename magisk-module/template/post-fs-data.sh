@@ -18,15 +18,18 @@ mkdir -p "$SP_DATA_DIR"
 chown 0:0 "$SP_DATA_DIR"
 chmod 0755 "$SP_DATA_DIR"
 find "$SP_DATA_DIR" -type f -exec chmod 0644 {} + 2>/dev/null
-if ! chcon -R "$SP_DATA_CONTEXT" "$SP_DATA_DIR" 2>/dev/null; then
-    # Magisk had nowhere to store the rules for early loading: load them into the live policy.
+if ! sp_context_known "$SP_DATA_CONTEXT"; then
+    # Magisk did not preload the rules (it prints "Unable to find preinit dir" at install when it
+    # cannot store them): load them into the live policy, before the audio HAL starts.
     magiskpolicy --live --apply "$MODDIR/sepolicy.rule" >/dev/null 2>&1
-    if chcon -R "$SP_DATA_CONTEXT" "$SP_DATA_DIR" 2>/dev/null; then
+    if sp_context_known "$SP_DATA_CONTEXT"; then
         sp_log "$SP_LOG" "sepolicy: rules loaded at post-fs-data (not preloaded by Magisk)"
     else
-        sp_log "$SP_LOG" "sepolicy: cannot label $SP_DATA_DIR; the saved state will not load"
+        sp_log "$SP_LOG" "sepolicy: cannot load the rules; the audio HAL cannot read the saved state"
     fi
 fi
+chcon -R "$SP_DATA_CONTEXT" "$SP_DATA_DIR" 2>/dev/null ||
+    sp_log "$SP_LOG" "sepolicy: cannot label $SP_DATA_DIR"
 
 # Files on partitions Magisk does not overlay (such as a separate /odm).
 if [ -f "$MODDIR/bind.list" ]; then

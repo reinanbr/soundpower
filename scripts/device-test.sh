@@ -71,7 +71,10 @@ echo "$diag" | grep -q '^library: /' && pass "library loaded: $(echo "$diag" | s
     fail "the effects HAL has not loaded libsoundpower.so"
 not_patched=$(echo "$diag" | grep -c 'NOT PATCHED')
 [ "$not_patched" = 0 ] && pass "every patched configuration is mounted" || fail "$not_patched configuration(s) not mounted"
-echo "$diag" | grep -q 'soundpower_data_file' && pass "data directory labelled soundpower_data_file" ||
+# The label alone proves nothing: it can be set even when the policy does not define the type.
+echo "$diag" | grep -q '^policy: soundpower_data_file loaded' && pass "SELinux type soundpower_data_file loaded" ||
+    fail "SELinux type soundpower_data_file not in the policy"
+echo "$diag" | grep -q 'soundpower_data_file:s0 .*/data/vendor/soundpower$' && pass "data directory labelled soundpower_data_file" ||
     fail "data directory missing or mislabelled"
 denials=$(echo "$diag" | sed -n '/^== SELinux denials/,/^== /p' | grep -c 'avc:')
 [ "$denials" = 0 ] && pass "no SELinux denials mentioning SoundPower" || fail "$denials SELinux denial(s)"

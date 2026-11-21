@@ -33,6 +33,11 @@ while read -r sp_dev; do
 done <"$MODDIR/configs.list"
 
 echo "== data"
+if sp_context_known "$SP_DATA_CONTEXT"; then
+    echo "policy: soundpower_data_file loaded"
+else
+    echo "policy: soundpower_data_file NOT LOADED (the audio HAL cannot read the saved state)"
+fi
 ls -ldZ "$SP_DATA_DIR" 2>&1
 ls -lZ "$SP_DATA_DIR" 2>&1 | grep -v '^total'
 

@@ -70,6 +70,13 @@ sp_crash_in_library() { # $1 = list written by sp_tombstones at the start of thi
     [ -n "$_sp_hit" ] && echo "$_sp_hit"
 }
 
+# True if the loaded SELinux policy defines the context $1 (the kernel validates what is written
+# to selinuxfs's context node). chcon cannot tell: Magisk's domain may set a context the policy
+# does not define, and the kernel then stores it but treats the file as unlabeled.
+sp_context_known() {
+    { printf '%s' "$1" >"$SP_ROOT/sys/fs/selinux/context"; } 2>/dev/null
+}
+
 sp_log() { # $1 = log file, $2... = message
     _sp_log_file=$1
     shift

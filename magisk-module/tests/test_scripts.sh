@@ -64,16 +64,18 @@ cat >"$stubs/getprop" <<'EOF'
 [ "$1" = sys.boot_completed ] && echo 1
 exit 0
 EOF
+# The fake selinuxfs context node: a directory (writes fail, as for an undefined type) until
+# magiskpolicy "loads" the rules, then a file. chcon succeeds either way, as it does for Magisk.
 cat >"$stubs/chcon" <<'EOF'
 #!/bin/sh
-# Fails (unknown type) until magiskpolicy has "loaded" the rules, when FAKE_POLICY_DIR is set.
-[ -z "${FAKE_POLICY_DIR:-}" ] || [ -f "$FAKE_POLICY_DIR/loaded" ] || exit 1
 echo "chcon $*" >>"${FAKE_LOG:-/dev/null}"
 EOF
 cat >"$stubs/magiskpolicy" <<'EOF'
 #!/bin/sh
 echo "magiskpolicy $*" >>"${FAKE_LOG:-/dev/null}"
-[ -n "${FAKE_POLICY_DIR:-}" ] && touch "$FAKE_POLICY_DIR/loaded"
+[ -n "${FAKE_POLICY_FAIL:-}" ] && exit 1
+node=${SP_ROOT:-}/sys/fs/selinux/context
+[ -d "$node" ] && rmdir "$node" && : >"$node"
 exit 0
 EOF
 for c in sleep chown mount dmesg logcat dumpsys; do
@@ -267,20 +269,30 @@ cp "$work/first/system/vendor/etc/audio_effects.xml" "$dev/vendor/etc/audio_effe
 new_moddir
 export FAKE_LOG="$work/fake.log"
 : >"$FAKE_LOG"
-mkdir -p "$work/policy"
+policy_not_loaded() { rm -rf "$dev/sys/fs/selinux/context" && mkdir -p "$dev/sys/fs/selinux/context"; }
+policy_loaded() { rm -rf "$dev/sys/fs/selinux/context" && : >"$dev/sys/fs/selinux/context"; }
+policy_not_loaded
 # A tombstone from an earlier boot, with a crash in the library.
 mkdir -p "$dev/data/tombstones"
 printf 'backtrace:\n      #00 pc 000000000004e3c4  /vendor/lib/soundfx/libsoundpower.so (sp::x+52)\n' >"$dev/data/tombstones/tombstone_04"
-(PATH=$stubs:$PATH SP_ROOT=$dev FAKE_POLICY_DIR=$work/policy sh "$moddir/post-fs-data.sh")
+(PATH=$stubs:$PATH SP_ROOT=$dev sh "$moddir/post-fs-data.sh")
 ok "post-fs-data: creates the data directory" [ -d "$dev/data/vendor/soundpower" ]
 ok "post-fs-data: loads the rules when they were not preloaded" contains "$FAKE_LOG" "magiskpolicy --live --apply $moddir/sepolicy.rule"
 ok "post-fs-data: labels the data directory" contains "$FAKE_LOG" "chcon -R u:object_r:soundpower_data_file:s0 $dev/data/vendor/soundpower"
 ok "post-fs-data: logs the fallback" contains "$moddir/log/boot.log" "rules loaded at post-fs-data"
 ok "post-fs-data: lists the existing tombstones" contains "$moddir/log/tombstones.txt" "$dev/data/tombstones/tombstone_04 "
 
+policy_not_loaded
+: >"$FAKE_LOG"
+(PATH=$stubs:$PATH SP_ROOT=$dev FAKE_POLICY_FAIL=1 sh "$moddir/post-fs-data.sh")
+ok "post-fs-data: says when the rules cannot be loaded" contains "$moddir/log/boot.log" "cannot load the rules"
+ok "post-fs-data: still labels the data directory" contains "$FAKE_LOG" "chcon -R u:object_r:soundpower_data_file:s0"
+
+policy_loaded
 : >"$FAKE_LOG"
 (PATH=$stubs:$PATH SP_ROOT=$dev sh "$moddir/post-fs-data.sh")
 ok "post-fs-data: no live policy load when preloaded" lacks "$FAKE_LOG" "magiskpolicy"
+ok "post-fs-data: labels the data directory when preloaded" contains "$FAKE_LOG" "chcon -R u:object_r:soundpower_data_file:s0"
 ok "post-fs-data: bind-mounts the /odm copy" contains "$FAKE_LOG" "mount -o bind $moddir/bind/odm/etc/audio_effects.xml $dev/odm/etc/audio_effects.xml"
 ok "post-fs-data: logs the bind mount" contains "$moddir/log/boot.log" "bind-mounted /odm/etc/audio_effects.xml"
 
@@ -291,6 +303,7 @@ ok "watchdog: stable HAL and an old crash keep the module" [ ! -f "$moddir/disab
 ok "watchdog: logs the result" contains "$moddir/log/boot.log" "watchdog: no problem in 30s (0 restarts)"
 ok "watchdog: writes diag.txt" contains "$moddir/log/diag.txt" "SoundPower diagnostics"
 ok "diag: reports a mounted copy" contains "$moddir/log/diag.txt" "/vendor/etc/audio_effects.xml: patched"
+ok "diag: reports the policy type" contains "$moddir/log/diag.txt" "policy: soundpower_data_file loaded"
 ok "diag: reports a copy that is not mounted" contains "$moddir/log/diag.txt" "/odm/etc/audio_effects.xml: NOT PATCHED"
 
 # Watchdog: a HAL that keeps restarting.
