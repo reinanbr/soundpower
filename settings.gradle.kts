@@ -27,3 +27,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "soundpower"
+
+include(
+    ":android-core:protocol",
+)
