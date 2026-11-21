@@ -1,0 +1,30 @@
+# CMake / native
+/build/
+/out/
+.cxx/
+.externalNativeBuild/
+compile_commands.json
+.cache/
+
+# Gradle / Android
+.gradle/
+local.properties
+captures/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local scratch
+/scratch/
+*.wav
+!**/tests/data/*.wav
