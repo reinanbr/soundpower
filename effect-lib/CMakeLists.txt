@@ -25,3 +25,7 @@ else()
     find_package(Threads REQUIRED)
     target_link_libraries(sp_effect_core PUBLIC Threads::Threads)
 endif()
+
+if(SP_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
