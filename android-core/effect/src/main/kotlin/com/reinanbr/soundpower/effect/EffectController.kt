@@ -69,15 +69,45 @@ class EffectController(
     private var transport: EffectTransport? = null
     private var info: ProtocolInfo? = null
 
+    /** Payloads sent on the current connection, by ID. */
+    private val sent = HashMap<Int, ByteArray>()
+
+    /** Counts connections, so [apply] notices a reconnect. */
+    private var generation = 0
+
+    /** Capabilities of the effect last connected to, kept after it disconnects; null before. */
+    @Volatile
+    var lastCapabilities: Int? = null
+        private set
+
     suspend fun connect(): Connection = locked { connectLocked() }
 
-    /** Sends [settings] (MASTER, EQ_STATE, LIMITER). Throws [EffectException]. */
-    suspend fun apply(settings: EqSettings) = locked {
-        for (m in settings.messages()) {
-            val code = call { it.setParameter(ParamId.bytes(m.id), m.payload) }
-            if (code != EffectCodes.SUCCESS) {
-                throw EffectException("setting parameter 0x%04x failed: %s".format(m.id, EffectCodes.name(code)))
+    /**
+     * Sends [settings]: MASTER, EQ_STATE and LIMITER, plus the protocol 1.1 IDs the effect lists in
+     * its capabilities. Only messages whose bytes differ from what this connection last sent go
+     * out (a slider drag sends one EQ_STATE, not six messages); [force] sends all of them, and so
+     * does a new connection. Throws [EffectException].
+     */
+    suspend fun apply(settings: EqSettings, force: Boolean = false) = locked {
+        if (force) sent.clear()
+        // A reconnect in the middle (audioserver restarted) loses what was sent before it: start over.
+        for (attempt in 0..MAX_RESENDS) {
+            val generation = this.generation
+            val capabilities = when (val c = connectLocked()) {
+                is Connection.Connected -> c.info.capabilities
+                is Connection.Incompatible -> throw EffectException("the effect speaks protocol ${c.info.major}.${c.info.minor}")
+                is Connection.Failed -> throw EffectException(c.reason)
             }
+            for (m in settings.messages(capabilities)) {
+                if (sent[m.id]?.contentEquals(m.payload) == true) continue
+                sent.remove(m.id)
+                val code = call { it.setParameter(ParamId.bytes(m.id), m.payload) }
+                if (code != EffectCodes.SUCCESS) {
+                    throw EffectException("setting parameter 0x%04x failed: %s".format(m.id, EffectCodes.name(code)))
+                }
+                sent[m.id] = m.payload
+            }
+            if (generation == this.generation) break
         }
     }
 
@@ -113,6 +143,9 @@ class EffectController(
         }
         transport = t
         info = pi
+        lastCapabilities = pi.capabilities
+        sent.clear()
+        generation++
         return Connection.Connected(pi)
     }
 
@@ -135,5 +168,10 @@ class EffectController(
         transport?.release()
         transport = null
         info = null
+        sent.clear()
+    }
+
+    private companion object {
+        const val MAX_RESENDS = 2
     }
 }

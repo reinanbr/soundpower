@@ -49,8 +49,6 @@
     <string name="state_problem">Needs attention</string>
 
     <!-- Equalizer -->
-    <string name="eq_enabled">Enabled</string>
-    <string name="eq_setup">Setup</string>
     <string name="eq_status">Status</string>
     <string name="eq_stream_detail">%1$d Hz, %2$d ch, CPU %3$.1f %% (peak %4$.1f %%)</string>
     <string name="eq_no_streams">No music is playing through the effect.</string>
@@ -60,13 +58,133 @@
     <string name="eq_persist_error">Not saved for the next boot: %1$s</string>
     <string name="eq_preamp">Preamp</string>
     <string name="eq_auto_preamp">Auto preamp</string>
-    <string name="eq_auto_preamp_hint">Lowers the level by the largest boost, so the curve cannot clip.</string>
-    <string name="eq_bands">Bands</string>
-    <string name="eq_reset">Reset to flat</string>
-    <string name="eq_not_graphic">The saved curve is not a 10-band layout.</string>
-    <string name="eq_use_graphic">Use the 10-band equalizer</string>
-    <string name="eq_band_hz">%1$s Hz</string>
-    <string name="gain_db">%1$+.1f dB</string>
+    <!-- Equalizer -->
+    <string name="eq_title">Equalizer</string>
+    <string name="eq_switch">Equalizer on</string>
+    <string name="eq_mode_graphic">Graphic</string>
+    <string name="eq_mode_parametric">Parametric</string>
+    <string name="eq_bass">Bass</string>
+    <string name="eq_treble">Treble</string>
+    <string name="eq_applied_preamp">Applied %1$s dB</string>
+    <string name="eq_curve">Frequency response</string>
+    <string name="eq_band_description">Band %1$d, %2$s Hz</string>
+    <string name="eq_band_title">Band %1$d · %2$s Hz</string>
+    <string name="eq_add_band">Add band</string>
+    <string name="eq_remove_band">Remove band</string>
+    <string name="eq_band_on">Band on</string>
+    <string name="eq_frequency">Frequency</string>
+    <string name="eq_frequency_short">Freq</string>
+    <string name="eq_gain">Gain</string>
+    <string name="eq_q">Q</string>
+    <string name="eq_hint">Long-press a control to type a value. Double-tap to reset it.</string>
+    <string name="eq_reset_all">Reset equalizer</string>
+    <string name="eq_setup_status">Setup and status</string>
+    <string name="eq_theme">Theme</string>
+    <string name="theme_system">Follow the system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="type_peaking">Peak</string>
+    <string name="type_low_shelf">Low shelf</string>
+    <string name="type_high_shelf">High shelf</string>
+    <string name="type_low_pass">Low pass</string>
+    <string name="type_high_pass">High pass</string>
+    <string name="type_notch">Notch</string>
+    <string name="type_band_pass">Band pass</string>
+
+    <!-- Navigation -->
+    <string name="tab_equalizer">Equalizer</string>
+    <string name="tab_effects">Effects</string>
+    <string name="tab_menu">Menu</string>
+    <string name="eq_reset_done">Equalizer reset</string>
+    <string name="action_undo">Undo</string>
+    <string name="eq_bands_hint">Tap or drag the curve to scroll the bands.</string>
+
+    <!-- Parametric bands -->
+    <string name="eq_band_name">Band %1$d</string>
+    <string name="eq_band_channel">Channel</string>
+    <string name="eq_band_color">Band colour</string>
+    <string name="eq_band_color_auto">Automatic</string>
+    <string name="eq_band_lock">Lock band</string>
+    <string name="eq_band_unlock">Unlock band</string>
+    <string name="eq_band_locked">Locked</string>
+    <string name="eq_routing_unsupported">The installed module applies bands to every channel. Update it to route this band; until then it is off.</string>
+    <string name="channel_all">Both channels</string>
+    <string name="channel_left">Left</string>
+    <string name="channel_right">Right</string>
+    <string name="channel_mid">Mid</string>
+    <string name="channel_side">Side</string>
+    <string name="channel_all_short">L+R</string>
+    <string name="channel_left_short">L</string>
+    <string name="channel_right_short">R</string>
+    <string name="channel_mid_short">Mid</string>
+    <string name="channel_side_short">Side</string>
+    <string name="channel_mid_hint">The centre: what both channels share (voice, bass).</string>
+    <string name="channel_side_hint">The difference between the channels: what makes the sound wide.</string>
+
+    <!-- Effects page -->
+    <string name="effects_title">Tone and dynamics</string>
+    <string name="stereo_section">Balance and stereo</string>
+    <string name="knob_bass_freq">Bass frequency</string>
+    <string name="knob_treble_freq">Treble frequency</string>
+    <string name="knob_width">Width</string>
+    <string name="knob_makeup">Makeup</string>
+    <string name="balance_left_short">L %1$d</string>
+    <string name="balance_right_short">R %1$d</string>
+    <string name="balance_centre_short">C</string>
+
+    <!-- Menu page -->
+    <string name="menu_equalizer">Equalizer</string>
+    <string name="menu_bands_summary">%1$s, %2$s to %3$s Hz</string>
+    <string name="menu_reset_summary">Flattens the bands and the tone; locked bands stay</string>
+    <string name="menu_setup_summary">Root, module and audio effect</string>
+    <string name="menu_look">Look and feel</string>
+    <string name="menu_about">About</string>
+    <string name="about_version">SoundPower %1$s</string>
+    <string name="about_license">Free software under the GNU General Public License, version 3 or later.</string>
+
+    <!-- Tools -->
+    <string name="tool_bands">Band configuration</string>
+    <string name="tool_tone">Tone</string>
+    <string name="action_back">Back</string>
+    <string name="bands_layout">Graphic equalizer bands</string>
+    <plurals name="bands_fixed">
+        <item quantity="one">%1$d band</item>
+        <item quantity="other">%1$d bands</item>
+    </plurals>
+    <string name="bands_fixed_detail">%1$s to %2$s Hz</string>
+    <string name="bands_custom">Custom</string>
+    <string name="bands_count">Number of bands</string>
+    <string name="bands_start">Lowest band</string>
+    <string name="bands_end">Highest band</string>
+    <string name="bands_overlap">Bands overlap</string>
+    <string name="bands_overlap_hint">Wider bands that blend into smooth curves. Off: each band only moves its own region.</string>
+    <string name="bands_parametric_note">The parametric equalizer keeps its own bands; this only changes the graphic one.</string>
+    <string name="tone_hint">Bass and treble are shelves after the equalizer, saved with it.</string>
+    <string name="limiter">Limiter</string>
+    <string name="limiter_hint">Keeps peaks under the ceiling, so boosts never clip. Off: peaks above 0 dB clip in the system mixer.</string>
+    <string name="limiter_ceiling">Ceiling</string>
+    <string name="limiter_release">Release</string>
+    <string name="compressor">Compressor</string>
+    <string name="compressor_hint">Reduces the difference between loud and quiet passages.</string>
+    <string name="compressor_threshold">Threshold</string>
+    <string name="compressor_ratio">Ratio</string>
+    <string name="compressor_attack">Attack</string>
+    <string name="compressor_release">Release</string>
+    <string name="compressor_knee">Knee</string>
+    <string name="stereo_balance">Balance</string>
+    <string name="stereo_width_hint">0 % is mono, 100 % unchanged, 200 % twice as wide.</string>
+    <string name="stereo_mono">Mono</string>
+    <string name="stereo_mono_hint">Both channels play the same mix.</string>
+    <string name="percent">%1$d %%</string>
+    <string name="ratio_value">%1$s : 1</string>
+    <string name="unit_db">dB</string>
+    <string name="unit_hz">Hz</string>
+    <string name="unit_ms">ms</string>
+    <string name="unit_percent" formatted="false">%</string>
+    <string name="value_range">From %1$s to %2$s %3$s</string>
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Cancel</string>
+
 
     <plurals name="instances_in_dumpsys">
         <item quantity="one">%1$d instance in dumpsys media.audio_flinger</item>

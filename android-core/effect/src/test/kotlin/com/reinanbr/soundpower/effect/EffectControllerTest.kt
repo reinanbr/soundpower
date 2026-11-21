@@ -2,11 +2,14 @@
 package com.reinanbr.soundpower.effect
 
 import com.reinanbr.soundpower.model.EqSettings
-import com.reinanbr.soundpower.model.GraphicEq
+import com.reinanbr.soundpower.model.GraphicBands
+import com.reinanbr.soundpower.protocol.Capability
 import com.reinanbr.soundpower.protocol.EffectStatus
 import com.reinanbr.soundpower.protocol.EqState
 import com.reinanbr.soundpower.protocol.MasterParams
 import com.reinanbr.soundpower.protocol.ParamId
+import com.reinanbr.soundpower.protocol.StereoParams
+import com.reinanbr.soundpower.protocol.ToneParams
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -20,8 +23,9 @@ import kotlin.test.assertTrue
 
 class EffectControllerTest {
     /** An effect that stores what it is sent and answers GETs like effect-lib does. */
-    private class FakeEffect(val major: Int = 1) : EffectTransport {
+    private class FakeEffect(val major: Int = 1, val capabilities: Int = 3) : EffectTransport {
         val set = LinkedHashMap<Int, ByteArray>()
+        val calls = ArrayList<Int>()
         var released = false
         var deadOnce = false
         var statusFlags = 0
@@ -32,12 +36,13 @@ class EffectControllerTest {
                 return EffectCodes.ERROR_DEAD_OBJECT
             }
             set[id(param)] = value.copyOf()
+            calls += id(param)
             return EffectCodes.SUCCESS
         }
 
         override fun getParameter(param: ByteArray, value: ByteArray): Int {
             val bytes = when (id(param)) {
-                ParamId.PROTOCOL_INFO -> le(16).putShort(major.toShort()).putShort(0).putInt(0x100).putInt(32).putInt(3)
+                ParamId.PROTOCOL_INFO -> le(16).putShort(major.toShort()).putShort(0).putInt(0x100).putInt(32).putInt(capabilities)
                 ParamId.STATUS -> le(48).putInt(48000).putInt(2).putInt(5).putInt(1).putFloat(0f).putFloat(0f)
                     .putInt(4).putInt(-9).putInt(statusFlags).putFloat(0f).putLong(0)
                 else -> return EffectCodes.ERROR_BAD_VALUE
@@ -69,13 +74,57 @@ class EffectControllerTest {
         assertIs<EffectController.Connection.Connected>(connection)
         assertEquals("0.1.0", connection.info.libVersionName)
 
-        val settings = EqSettings(bypass = true, bands = GraphicEq.withGain(GraphicEq.flatBands(), 5, 3f))
+        val settings = EqSettings(bypass = true, bands = GraphicBands().withGain(5, 3f).bands())
         c.apply(settings)
         val sent = opened.single().set
         assertEquals(listOf(ParamId.MASTER, ParamId.EQ_STATE, ParamId.LIMITER), sent.keys.toList())
         assertEquals(MasterParams(bypass = true), MasterParams.decode(sent.getValue(ParamId.MASTER)))
         assertEquals(3f, EqState.decode(sent.getValue(ParamId.EQ_STATE)).bands[5].gainDb)
         assertEquals(1, opened.size)
+    }
+
+    @Test
+    fun sendsOnlyWhatChanged() = runTest {
+        val (c, opened) = controller(FakeEffect(), FakeEffect())
+        val first = EqSettings()
+        c.apply(first)
+        val effect = opened.single()
+        assertEquals(3, effect.calls.size)
+
+        c.apply(first.copy(bands = GraphicBands().withGain(1, 2f).bands()))
+        assertEquals(listOf(ParamId.EQ_STATE), effect.calls.drop(3))
+        c.apply(first.copy(bands = GraphicBands().withGain(1, 2f).bands()))
+        assertEquals(4, effect.calls.size) // nothing changed
+
+        c.apply(first, force = true)
+        assertEquals(7, effect.calls.size)
+    }
+
+    @Test
+    fun aReconnectResendsEverything() = runTest {
+        val (c, opened) = controller(FakeEffect(), FakeEffect())
+        c.apply(EqSettings())
+        // audioserver restarts: the next call fails once, and the controller opens a new instance.
+        opened[0].deadOnce = true
+        c.apply(EqSettings(preampDb = -2f))
+        assertEquals(2, opened.size)
+        assertEquals(listOf(ParamId.MASTER, ParamId.EQ_STATE, ParamId.LIMITER), opened[1].calls)
+        assertEquals(-2f, MasterParams.decode(opened[1].set.getValue(ParamId.MASTER)).preampDb)
+    }
+
+    @Test
+    fun sendsTheProtocol11ParametersOnlyWhenTheEffectHasThem() = runTest {
+        val all = Capability.TONE or Capability.STEREO or Capability.COMPRESSOR or Capability.LIMITER_SWITCH
+        val (c, opened) = controller(FakeEffect(capabilities = 3 or all))
+        val settings = EqSettings(tone = ToneParams(bassDb = 4f), stereo = StereoParams(mono = true))
+        c.apply(settings) // connects on the first call
+        val sent = opened.single().set
+        assertEquals(
+            listOf(ParamId.MASTER, ParamId.EQ_STATE, ParamId.LIMITER, ParamId.TONE, ParamId.STEREO, ParamId.COMPRESSOR),
+            sent.keys.toList(),
+        )
+        assertEquals(4f, ToneParams.decode(sent.getValue(ParamId.TONE)).bassDb)
+        assertEquals(true, StereoParams.decode(sent.getValue(ParamId.STEREO)).mono)
     }
 
     @Test

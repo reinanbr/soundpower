@@ -10,6 +10,7 @@ import com.reinanbr.soundpower.root.LibsuRootShell
 import com.reinanbr.soundpower.root.ModuleManager
 import com.reinanbr.soundpower.root.ModuleProp
 import com.reinanbr.soundpower.setup.SetupRepository
+import com.reinanbr.soundpower.ui.prefs.UiPrefsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,12 +27,18 @@ class AppContainer(context: Context) {
     private val effect = EffectController(open = { AudioEffectTransport.open(app) })
 
     val eq = EqRepository(
-        store = SettingsStore(File(app.filesDir, "eq_settings.bin"), ioScope),
+        store = SettingsStore(
+            file = File(app.filesDir, "audio_settings.json"),
+            scope = ioScope,
+            legacyFile = File(app.filesDir, "eq_settings.bin"),
+        ),
         effect = effect,
         modules = modules,
         staging = File(app.cacheDir, "state.bin"),
         scope = scope,
     )
+
+    val uiPrefs = UiPrefsStore(File(app.filesDir, "ui_prefs.json"), ioScope)
 
     val setup = SetupRepository(
         modules = modules,

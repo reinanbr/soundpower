@@ -5,8 +5,9 @@ import com.reinanbr.soundpower.data.SettingsStore
 import com.reinanbr.soundpower.effect.EffectCodes
 import com.reinanbr.soundpower.effect.EffectController
 import com.reinanbr.soundpower.effect.EffectTransport
+import com.reinanbr.soundpower.model.AudioSettings
 import com.reinanbr.soundpower.model.EqSettings
-import com.reinanbr.soundpower.model.GraphicEq
+import com.reinanbr.soundpower.protocol.Capability
 import com.reinanbr.soundpower.protocol.EqState
 import com.reinanbr.soundpower.protocol.ParamId
 import com.reinanbr.soundpower.root.ModuleManager
@@ -31,6 +32,10 @@ import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class) // virtual-time helpers of kotlinx-coroutines-test
 class EqRepositoryTest {
+    private companion object {
+        val ALL_IDS = listOf(ParamId.MASTER, ParamId.EQ_STATE, ParamId.LIMITER, ParamId.TONE, ParamId.STEREO, ParamId.COMPRESSOR)
+    }
+
     private class FakeEffect : EffectTransport {
         val sets = ArrayList<Pair<Int, ByteArray>>()
         var failWith: Int? = null
@@ -42,8 +47,9 @@ class EqRepositoryTest {
         }
 
         override fun getParameter(param: ByteArray, value: ByteArray): Int {
-            // PROTOCOL_INFO: 1.0, library 0.1.0, 32 bands.
-            ByteBuffer.wrap(value).order(ByteOrder.LITTLE_ENDIAN).putShort(1).putShort(0).putInt(0x100).putInt(32).putInt(3)
+            // PROTOCOL_INFO: 1.1, library 0.1.0, 32 bands, every 1.1 capability.
+            ByteBuffer.wrap(value).order(ByteOrder.LITTLE_ENDIAN).putShort(1).putShort(1).putInt(0x100).putInt(32)
+                .putInt(3 or EqSettings.ALL_CAPABILITIES or Capability.LIMITER_SWITCH)
             return 16
         }
 
@@ -66,7 +72,7 @@ class EqRepositoryTest {
     private val effect = FakeEffect()
     private val shell = FakeShell()
     private val staging = File(dir, "staging.bin")
-    private val storeFile = File(dir, "eq.bin")
+    private val storeFile = File(dir, "audio.json")
 
     private fun TestScope.repository(): EqRepository {
         val dispatcher = StandardTestDispatcher(testScheduler)
@@ -94,6 +100,8 @@ class EqRepositoryTest {
         return repo
     }
 
+    private fun AudioSettings.withGain(band: Int, db: Float) = copy(eq = eq.copy(graphic = eq.graphic.withGain(band, db)))
+
     private fun eqSent(): EqState = EqState.decode(effect.sets.last { it.first == ParamId.EQ_STATE }.second)
 
     @Test
@@ -101,32 +109,37 @@ class EqRepositoryTest {
         val repo = started(repository())
         repo.start()
         runCurrent()
-        assertEquals(EqSettings.DEFAULT, repo.settings.value)
-        assertEquals(listOf(ParamId.MASTER, ParamId.EQ_STATE, ParamId.LIMITER), effect.sets.map { it.first })
+        assertEquals(AudioSettings.DEFAULT, repo.settings.value)
+        assertEquals(ALL_IDS, effect.sets.map { it.first })
         // state.bin is written once at start, in case it is missing or stale.
         assertEquals(1, shell.runs.value)
-        assertContentEquals(EqSettings.DEFAULT.toStateFile(), staging.readBytes())
+        assertContentEquals(AudioSettings.DEFAULT.effect().toStateFile(), staging.readBytes())
     }
 
     @Test
     fun sendsChangesAtOnceAndPersistsThemWhenTheySettle() = runTest {
         val repo = started(repository())
-        repo.update { it.copy(bands = GraphicEq.withGain(it.bands, 0, 3f)) }
+        val atStart = effect.sets.size
+        repo.update { it.withGain(0, 3f) }
         runCurrent()
         assertEquals(3f, eqSent().bands[0].gainDb)
-        repo.update { it.copy(bands = GraphicEq.withGain(it.bands, 0, 6f)) }
+        repo.update { it.withGain(0, 6f) }
         advanceTimeBy(EqRepository.PERSIST_DELAY_MS / 2)
         runCurrent()
         assertEquals(6f, eqSent().bands[0].gainDb)
         assertEquals(1, shell.runs.value)
+        // While the band moves, only EQ_STATE goes out.
+        assertEquals(listOf(ParamId.EQ_STATE, ParamId.EQ_STATE), effect.sets.drop(atStart).map { it.first })
 
         advanceTimeBy(EqRepository.PERSIST_DELAY_MS)
         runCurrent()
         shell.runs.first { it >= 2 }
-        val expected = checkNotNull(repo.settings.value).toStateFile()
+        val settled = checkNotNull(repo.settings.value)
         assertEquals(2, shell.runs.value)
-        assertContentEquals(expected, staging.readBytes())
-        assertContentEquals(expected, storeFile.readBytes())
+        assertContentEquals(settled.effect().toStateFile(), staging.readBytes())
+        assertEquals(settled, AudioSettings.fromJson(storeFile.readText()))
+        // Once saved, everything is sent again (a new stream may have reloaded an older state.bin).
+        assertEquals(ALL_IDS, effect.sets.takeLast(ALL_IDS.size).map { it.first })
     }
 
     @Test
@@ -139,7 +152,7 @@ class EqRepositoryTest {
         repo.retry()
         runCurrent()
         assertNull(repo.effectError.value)
-        assertEquals(3, effect.sets.size)
+        assertEquals(ALL_IDS, effect.sets.map { it.first })
     }
 
     @Test

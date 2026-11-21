@@ -15,7 +15,7 @@ class StateFileTest {
 
     @Test
     fun encodeMatchesTheGoldenVector() {
-        assertContentEquals(GoldenVectors.bytes("state_file_example"), StateFile.encode(entries))
+        assertContentEquals(GoldenVectors.bytes("state_file_example"), StateFile.encode(entries, minor = 0))
     }
 
     @Test

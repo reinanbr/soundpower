@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FF1E2A38</color>
+    <!-- Matches the background of the light and dark palettes in ui/theme/Theme.kt. -->
+    <color name="window_background">#FFF4F7F9</color>
 </resources>

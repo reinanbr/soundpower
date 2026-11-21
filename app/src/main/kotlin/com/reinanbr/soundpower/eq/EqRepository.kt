@@ -4,6 +4,7 @@ package com.reinanbr.soundpower.eq
 import com.reinanbr.soundpower.data.SettingsStore
 import com.reinanbr.soundpower.effect.EffectController
 import com.reinanbr.soundpower.effect.EffectException
+import com.reinanbr.soundpower.model.AudioSettings
 import com.reinanbr.soundpower.model.EqSettings
 import com.reinanbr.soundpower.protocol.EffectStatus
 import com.reinanbr.soundpower.root.EffectDump
@@ -27,12 +28,16 @@ data class EqStatus(
     val effect: EffectStatus?,
     /** The other instances, from dumpsys (null without root). */
     val streams: List<EffectDump>?,
+    /** `PROTOCOL_INFO` capabilities of the effect last reached (null before). */
+    val capabilities: Int? = null,
 )
 
 /**
- * The live EQ settings. Every change goes to the effect at once (the latest value wins when
- * changes come faster than binder calls); once changes settle, they are saved in the app and
- * in the module's state.bin, which the effect loads at boot.
+ * The live audio settings. Every change goes to the effect at once (the latest value wins when
+ * changes come faster than binder calls, and only the parameters that changed are sent); once
+ * changes settle, they are saved in the app and in the module's state.bin, which the effect
+ * loads at boot, and everything is sent once more in case a new stream reloaded an older
+ * state.bin in the meantime.
  */
 class EqRepository(
     private val store: SettingsStore,
@@ -42,8 +47,8 @@ class EqRepository(
     private val staging: File,
     private val scope: CoroutineScope,
 ) {
-    private val _settings = MutableStateFlow<EqSettings?>(null)
-    val settings: StateFlow<EqSettings?> = _settings.asStateFlow()
+    private val _settings = MutableStateFlow<AudioSettings?>(null)
+    val settings: StateFlow<AudioSettings?> = _settings.asStateFlow()
 
     private val _effectError = MutableStateFlow<String?>(null)
     val effectError: StateFlow<String?> = _effectError.asStateFlow()
@@ -61,13 +66,14 @@ class EqRepository(
             val initial = store.settings.first()
             var saved = initial
             _settings.value = initial
-            launch { _settings.filterNotNull().collect(::push) }
+            launch { _settings.filterNotNull().collect { push(it) } }
             launch {
                 _settings.filterNotNull().debounce(PERSIST_DELAY_MS).collect {
                     if (it != saved) {
                         store.save(it)
                         saved = it
                         writeStateFile(it)
+                        push(it, force = true)
                     }
                 }
             }
@@ -76,13 +82,13 @@ class EqRepository(
         }
     }
 
-    fun update(transform: (EqSettings) -> EqSettings) {
+    fun update(transform: (AudioSettings) -> AudioSettings) {
         _settings.update { it?.let(transform) }
     }
 
     /** Sends the current settings again, e.g. after the effect was unreachable. */
     fun retry() {
-        scope.launch { _settings.value?.let { push(it) } }
+        scope.launch { _settings.value?.let { push(it, force = true) } }
     }
 
     suspend fun readStatus(): EqStatus {
@@ -92,20 +98,22 @@ class EqRepository(
             null
         }
         val streams = modules.effectDumps()?.filter { status == null || it.sessionId != status.sessionId }
-        return EqStatus(status, streams)
+        return EqStatus(status, streams, effect.lastCapabilities)
     }
 
-    private suspend fun push(settings: EqSettings) {
+    private suspend fun push(settings: AudioSettings, force: Boolean = false) {
         _effectError.value = try {
-            effect.apply(settings)
+            effect.apply(settings.effect(), force)
             null
         } catch (e: EffectException) {
             e.message ?: "unknown error"
         }
     }
 
-    private suspend fun writeStateFile(settings: EqSettings) {
-        val result = modules.writeStateFile(settings.toStateFile(), staging)
+    private suspend fun writeStateFile(settings: AudioSettings) {
+        // Only what the installed effect understands (all of it until the effect was reached).
+        val capabilities = effect.lastCapabilities ?: EqSettings.ALL_CAPABILITIES
+        val result = modules.writeStateFile(settings.effect().toStateFile(capabilities), staging)
         _persistError.value = (result as? ModuleManager.StateWrite.Failed)?.message
     }
 

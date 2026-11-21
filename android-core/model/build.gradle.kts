@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// The app's EQ settings and the 10-band graphic layout, mapped to protocol payloads. Pure JVM.
+// The app's audio settings (graphic and parametric EQ, tone, stereo, dynamics), their JSON form,
+// the response curve, and the mapping to protocol payloads. Pure JVM.
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 java {
@@ -20,6 +22,7 @@ kotlin {
 
 dependencies {
     api(project(":android-core:protocol"))
+    api(libs.kotlinx.serialization.json)
     testImplementation(libs.kotlin.test.junit)
 }
 
