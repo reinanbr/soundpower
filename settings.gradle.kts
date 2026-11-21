@@ -32,4 +32,5 @@ include(
     ":android-core:protocol",
     ":android-core:model",
     ":android-core:root",
+    ":android-core:effect",
 )

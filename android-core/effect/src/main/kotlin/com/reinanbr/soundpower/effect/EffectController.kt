@@ -1,0 +1,139 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package com.reinanbr.soundpower.effect
+
+import com.reinanbr.soundpower.model.EqSettings
+import com.reinanbr.soundpower.protocol.EffectStatus
+import com.reinanbr.soundpower.protocol.ParamId
+import com.reinanbr.soundpower.protocol.ProtocolInfo
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+
+/** The two `AudioEffect` calls the controller needs, returning `AudioEffect` status codes. */
+interface EffectTransport {
+    fun setParameter(param: ByteArray, value: ByteArray): Int
+
+    /** The number of bytes written to [value], or a negative status code. */
+    fun getParameter(param: ByteArray, value: ByteArray): Int
+
+    fun release()
+}
+
+/** Status codes of `android.media.audiofx.AudioEffect`. */
+object EffectCodes {
+    const val SUCCESS = 0
+    const val ERROR = -1
+    const val ALREADY_EXISTS = -2
+    const val ERROR_NO_INIT = -3
+    const val ERROR_BAD_VALUE = -4
+    const val ERROR_INVALID_OPERATION = -5
+    const val ERROR_NO_MEMORY = -6
+    const val ERROR_DEAD_OBJECT = -7
+
+    fun name(code: Int): String = when (code) {
+        SUCCESS -> "SUCCESS"
+        ERROR -> "ERROR"
+        ALREADY_EXISTS -> "ALREADY_EXISTS"
+        ERROR_NO_INIT -> "ERROR_NO_INIT"
+        ERROR_BAD_VALUE -> "ERROR_BAD_VALUE"
+        ERROR_INVALID_OPERATION -> "ERROR_INVALID_OPERATION"
+        ERROR_NO_MEMORY -> "ERROR_NO_MEMORY"
+        ERROR_DEAD_OBJECT -> "ERROR_DEAD_OBJECT"
+        else -> "code $code"
+    }
+}
+
+class EffectException(message: String) : Exception(message)
+
+/**
+ * Talks to the effect through a control instance that [open] creates. All instances in the
+ * audio HAL share one parameter state, so what is set here reaches every stream. Calls are
+ * serialised; if audioserver restarts (`ERROR_DEAD_OBJECT`), the instance is recreated once.
+ */
+class EffectController(
+    private val open: () -> EffectTransport,
+    private val io: CoroutineDispatcher = Dispatchers.IO,
+) {
+    sealed interface Connection {
+        data class Connected(val info: ProtocolInfo) : Connection
+
+        /** The effect speaks another major protocol version: the module and app don't match. */
+        data class Incompatible(val info: ProtocolInfo) : Connection
+
+        data class Failed(val reason: String) : Connection
+    }
+
+    private val mutex = Mutex()
+    private var transport: EffectTransport? = null
+    private var info: ProtocolInfo? = null
+
+    suspend fun connect(): Connection = locked { connectLocked() }
+
+    /** Sends [settings] (MASTER, EQ_STATE, LIMITER). Throws [EffectException]. */
+    suspend fun apply(settings: EqSettings) = locked {
+        for (m in settings.messages()) {
+            val code = call { it.setParameter(ParamId.bytes(m.id), m.payload) }
+            if (code != EffectCodes.SUCCESS) {
+                throw EffectException("setting parameter 0x%04x failed: %s".format(m.id, EffectCodes.name(code)))
+            }
+        }
+    }
+
+    /** `STATUS` of the control instance, with the process-wide counters. Throws [EffectException]. */
+    suspend fun status(): EffectStatus = locked {
+        val value = ByteArray(EffectStatus.SIZE)
+        val n = call { it.getParameter(ParamId.bytes(ParamId.STATUS), value) }
+        if (n < EffectStatus.SIZE) throw EffectException("reading STATUS failed: ${EffectCodes.name(n)}")
+        EffectStatus.decode(value)
+    }
+
+    suspend fun close() = locked { dropLocked() }
+
+    private suspend fun <T> locked(block: () -> T): T = mutex.withLock { withContext(io) { block() } }
+
+    private fun connectLocked(): Connection {
+        info?.let { return Connection.Connected(it) }
+        val t = try {
+            open()
+        } catch (e: Exception) {
+            return Connection.Failed(e.message ?: e.javaClass.simpleName)
+        }
+        val value = ByteArray(ProtocolInfo.SIZE)
+        val n = t.getParameter(ParamId.bytes(ParamId.PROTOCOL_INFO), value)
+        if (n < ProtocolInfo.SIZE) {
+            t.release()
+            return Connection.Failed("reading PROTOCOL_INFO failed: ${EffectCodes.name(n)}")
+        }
+        val pi = ProtocolInfo.decode(value)
+        if (!pi.isCompatible) {
+            t.release()
+            return Connection.Incompatible(pi)
+        }
+        transport = t
+        info = pi
+        return Connection.Connected(pi)
+    }
+
+    private fun call(op: (EffectTransport) -> Int): Int {
+        var code = EffectCodes.ERROR
+        for (attempt in 0..1) {
+            when (val c = connectLocked()) {
+                is Connection.Connected -> {}
+                is Connection.Incompatible -> throw EffectException("the effect speaks protocol ${c.info.major}.${c.info.minor}")
+                is Connection.Failed -> throw EffectException(c.reason)
+            }
+            code = op(checkNotNull(transport))
+            if (code != EffectCodes.ERROR_DEAD_OBJECT) break
+            dropLocked()
+        }
+        return code
+    }
+
+    private fun dropLocked() {
+        transport?.release()
+        transport = null
+        info = null
+    }
+}
