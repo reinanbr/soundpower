@@ -196,6 +196,8 @@ data class AudioSettings(
     val stereo: Stereo = Stereo(),
     val limiter: Limiter = Limiter(),
     val compressor: Compressor = Compressor(),
+    /** The preset [eq] came from (null: none); [Preset.matches] tells whether it was edited since. */
+    val presetId: String? = null,
 ) {
     /** What the effect needs to sound like this. */
     fun effect(): EqSettings = EqSettings(
