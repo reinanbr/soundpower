@@ -126,6 +126,20 @@ class ResponseCurve(
     fun db(frequencies: DoubleArray, path: BandChannel = BandChannel.ALL): FloatArray =
         FloatArray(frequencies.size) { db(frequencies[it], path).toFloat() }
 
+    /** The curves of [paths] at each of [frequencies], evaluating the sections once per frequency. */
+    fun db(frequencies: DoubleArray, paths: List<BandChannel>): List<FloatArray> {
+        val out = List(paths.size) { FloatArray(frequencies.size) }
+        for (i in frequencies.indices) {
+            val db = routedDb(frequencies[i])
+            val all = db[BandChannel.ALL.code]
+            for (p in paths.indices) {
+                val path = paths[p]
+                out[p][i] = (if (path == BandChannel.ALL) all else all + db[path.code]).toFloat()
+            }
+        }
+        return out
+    }
+
     /** The gain auto-preamp counts at [freqHz]: all + max(left, right) + max(mid, side). */
     private fun peakAt(freqHz: Double): Double {
         val db = routedDb(freqHz)
