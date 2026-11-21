@@ -5,6 +5,10 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.Serializer
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import com.reinanbr.soundpower.engine.EngineMode
+import com.reinanbr.soundpower.engine.Precision
+import com.reinanbr.soundpower.engine.RootlessOptions
+import com.reinanbr.soundpower.engine.RootlessScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -15,7 +19,7 @@ import java.io.OutputStream
 /** Built-in skins. A documented skin format comes later (docs/roadmap.md, phase 9). */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-/** Preferences of the app's own UI (not audio): one `key=value` per line. */
+/** Preferences of the app itself, not the audio settings: one `key=value` per line. */
 class UiPrefsStore(file: File, scope: CoroutineScope) {
     private val store: DataStore<Map<String, String>> = DataStoreFactory.create(
         serializer = LinesSerializer,
@@ -42,6 +46,29 @@ class UiPrefsStore(file: File, scope: CoroutineScope) {
         store.updateData { if ((it[KEY_SETUP_DONE] == "1") == done) it else it + (KEY_SETUP_DONE to if (done) "1" else "0") }
     }
 
+    /**
+     * How the app makes the sound; null until the user chose. Installs from before there was a
+     * choice were set up with root.
+     */
+    val engine: Flow<EngineMode?> = store.data.map { prefs ->
+        EngineMode.entries.firstOrNull { it.name == prefs[KEY_ENGINE] } ?: if (prefs[KEY_SETUP_DONE] == "1") EngineMode.ROOT else null
+    }
+
+    suspend fun setEngine(mode: EngineMode) {
+        store.updateData { if (it[KEY_ENGINE] == mode.name) it else it + (KEY_ENGINE to mode.name) }
+    }
+
+    val rootless: Flow<RootlessOptions> = store.data.map { prefs ->
+        RootlessOptions(
+            scope = RootlessScope.entries.firstOrNull { it.name == prefs[KEY_ROOTLESS_SCOPE] } ?: RootlessScope.GLOBAL,
+            precision = Precision.entries.firstOrNull { it.name == prefs[KEY_PRECISION] } ?: Precision.BALANCED,
+        )
+    }
+
+    suspend fun setRootless(options: RootlessOptions) {
+        store.updateData { it + (KEY_ROOTLESS_SCOPE to options.scope.name) + (KEY_PRECISION to options.precision.name) }
+    }
+
     private object LinesSerializer : Serializer<Map<String, String>> {
         override val defaultValue: Map<String, String> = emptyMap()
 
@@ -59,5 +86,8 @@ class UiPrefsStore(file: File, scope: CoroutineScope) {
     private companion object {
         const val KEY_THEME = "theme"
         const val KEY_SETUP_DONE = "setup_done"
+        const val KEY_ENGINE = "engine"
+        const val KEY_ROOTLESS_SCOPE = "rootless_scope"
+        const val KEY_PRECISION = "rootless_precision"
     }
 }

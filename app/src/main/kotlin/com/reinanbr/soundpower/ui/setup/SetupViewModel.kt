@@ -32,10 +32,6 @@ class SetupViewModel(private val setup: SetupRepository) : ViewModel() {
     private val _state = MutableStateFlow(SetupUiState(bundled = setup.bundled))
     val state: StateFlow<SetupUiState> = _state.asStateFlow()
 
-    init {
-        check()
-    }
-
     fun check() = work { recheck() }
 
     fun install() = work {

@@ -5,7 +5,11 @@ import com.reinanbr.soundpower.data.SettingsStore
 import com.reinanbr.soundpower.effect.EffectCodes
 import com.reinanbr.soundpower.effect.EffectController
 import com.reinanbr.soundpower.effect.EffectTransport
+import com.reinanbr.soundpower.engine.EngineMode
 import com.reinanbr.soundpower.model.AudioSettings
+import com.reinanbr.soundpower.model.DynamicsCompressor
+import com.reinanbr.soundpower.model.DynamicsLimiter
+import com.reinanbr.soundpower.model.DynamicsPlan
 import com.reinanbr.soundpower.model.EqSettings
 import com.reinanbr.soundpower.protocol.Capability
 import com.reinanbr.soundpower.protocol.EqState
@@ -13,6 +17,8 @@ import com.reinanbr.soundpower.protocol.ParamId
 import com.reinanbr.soundpower.root.ModuleManager
 import com.reinanbr.soundpower.root.RootShell
 import com.reinanbr.soundpower.root.ShellResult
+import com.reinanbr.soundpower.rootless.DynamicsEffect
+import com.reinanbr.soundpower.rootless.RootlessEngine
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -29,6 +35,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class) // virtual-time helpers of kotlinx-coroutines-test
 class EqRepositoryTest {
@@ -68,6 +75,24 @@ class EqRepositoryTest {
         }
     }
 
+    /** Android's effect for the mode without root: records the input gains it is sent. */
+    private class FakeDynamics(val plan: DynamicsPlan) : DynamicsEffect {
+        val inputGains = ArrayList<Float>()
+        override val hasControl = true
+        override fun setEnabled(enabled: Boolean) {}
+        override fun setInputGain(channel: Int, db: Float) {
+            inputGains += db
+        }
+        override fun setBand(channel: Int, band: Int, cutoffHz: Float, gainDb: Float) {}
+        override fun setCompressor(channel: Int, compressor: DynamicsCompressor) {}
+        override fun setLimiter(channel: Int, limiter: DynamicsLimiter) {}
+        override fun release() {}
+    }
+
+    private val dynamics = ArrayList<FakeDynamics>()
+    private val engineMode = MutableStateFlow<EngineMode?>(EngineMode.ROOT)
+    private lateinit var rootless: RootlessEngine
+
     private val dir: File = Files.createTempDirectory("sp-eq").toFile()
     private val effect = FakeEffect()
     private val shell = FakeShell()
@@ -76,10 +101,14 @@ class EqRepositoryTest {
 
     private fun TestScope.repository(): EqRepository {
         val dispatcher = StandardTestDispatcher(testScheduler)
+        rootless = RootlessEngine({ _, plan -> FakeDynamics(plan).also { dynamics += it } }, { 48000 }, dispatcher)
         return EqRepository(
             store = SettingsStore(storeFile, backgroundScope),
             effect = EffectController({ effect }, dispatcher),
+            rootless = rootless,
             modules = ModuleManager(shell, io = dispatcher),
+            engine = engineMode,
+            isModuleActive = { false },
             staging = staging,
             scope = backgroundScope,
         )
@@ -162,5 +191,31 @@ class EqRepositoryTest {
         assertEquals("no root shell", repo.persistError.value)
         // Live control does not need root.
         assertNull(repo.effectError.value)
+    }
+
+    @Test
+    fun withoutRootSettingsGoToAndroidsEffectAndStayInTheApp() = runTest {
+        engineMode.value = EngineMode.ROOTLESS
+        val repo = repository()
+        repo.start()
+        repo.settings.first { it != null }
+        runCurrent()
+        // What the service does once it runs.
+        rootless.configure(mapOf(RootlessEngine.GLOBAL_SESSION to null), RootlessEngine.DEFAULT_FRAME_MS)
+        runCurrent()
+        val fx = dynamics.single()
+        assertEquals(DynamicsPlan.of(AudioSettings.DEFAULT.effect(), fx.plan.layout).inputGainDb.toList(), fx.plan.inputGainDb.toList())
+
+        repo.update { it.copy(eq = it.eq.copy(preampDb = -6f, autoPreamp = false)) }
+        runCurrent()
+        assertEquals(listOf(-6f, -6f), fx.inputGains)
+        advanceTimeBy(EqRepository.PERSIST_DELAY_MS * 2)
+        runCurrent()
+        // Saved in the app only: no root, no state.bin, nothing sent to SoundPower's own effect.
+        AudioSettings.fromJson(storeFile.readText()).let { assertEquals(-6f, it.eq.preampDb) }
+        assertEquals(0, shell.runs.value)
+        assertTrue(effect.sets.isEmpty())
+        assertTrue(!staging.exists())
+        assertTrue(repo.readStatus().rootless?.active == true)
     }
 }

@@ -54,6 +54,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.reinanbr.soundpower.R
+import com.reinanbr.soundpower.engine.EngineFeatures
+import com.reinanbr.soundpower.engine.EngineMode
 import com.reinanbr.soundpower.model.AudioSettings
 import com.reinanbr.soundpower.model.Biquad
 import com.reinanbr.soundpower.model.EqProfile
@@ -191,7 +193,7 @@ internal fun ParametricEditor(
                 color = colors.band(i, bands[i].color),
                 on = on,
                 canRemove = bands.size > 1,
-                routingSupported = state.routingSupported,
+                features = state.features,
                 vm = vm,
                 onRequestValue = onRequestValue,
                 modifier = Modifier.animateItem(),
@@ -243,7 +245,7 @@ private fun BandCard(
     color: Color,
     on: Boolean,
     canRemove: Boolean,
-    routingSupported: Boolean,
+    features: EngineFeatures,
     vm: EqViewModel,
     onRequestValue: (ValueRequest) -> Unit,
     modifier: Modifier = Modifier,
@@ -295,7 +297,7 @@ private fun BandCard(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 TypeSelector(band.type, editable, Modifier.weight(1.3f)) { t -> update { it.copy(type = t) } }
-                ChannelSelector(band.channel, editable, Modifier.weight(1f)) { c -> update { it.copy(channel = c) } }
+                ChannelSelector(band.channel, editable, features::supports, Modifier.weight(1f)) { c -> update { it.copy(channel = c) } }
             }
             Row(Modifier.fillMaxWidth().alpha(dim), horizontalArrangement = Arrangement.SpaceBetween) {
                 ParamKnob(
@@ -322,7 +324,8 @@ private fun BandCard(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val note = when {
-                    !routingSupported && band.channel != BandChannel.ALL -> stringResource(R.string.eq_routing_unsupported)
+                    !features.supports(band.channel) && features.mode == EngineMode.ROOTLESS -> stringResource(R.string.eq_routing_needs_root)
+                    !features.supports(band.channel) -> stringResource(R.string.eq_routing_unsupported)
                     band.locked -> stringResource(R.string.eq_band_locked)
                     else -> null
                 }
@@ -412,7 +415,13 @@ private fun TypeSelector(type: BandType, enabled: Boolean, modifier: Modifier = 
 }
 
 @Composable
-private fun ChannelSelector(channel: BandChannel, enabled: Boolean, modifier: Modifier = Modifier, onChannel: (BandChannel) -> Unit) {
+private fun ChannelSelector(
+    channel: BandChannel,
+    enabled: Boolean,
+    supports: (BandChannel) -> Boolean,
+    modifier: Modifier = Modifier,
+    onChannel: (BandChannel) -> Unit,
+) {
     var open by remember { mutableStateOf(false) }
     val colors = LocalEqColors.current
     val description = stringResource(R.string.eq_band_channel)
@@ -432,9 +441,11 @@ private fun ChannelSelector(channel: BandChannel, enabled: Boolean, modifier: Mo
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             for (c in BandChannel.entries) {
-                val hint = when (c) {
-                    BandChannel.MID -> R.string.channel_mid_hint
-                    BandChannel.SIDE -> R.string.channel_side_hint
+                val supported = supports(c)
+                val hint = when {
+                    !supported -> R.string.channel_needs_root
+                    c == BandChannel.MID -> R.string.channel_mid_hint
+                    c == BandChannel.SIDE -> R.string.channel_side_hint
                     else -> null
                 }
                 DropdownMenuItem(
@@ -447,6 +458,7 @@ private fun ChannelSelector(channel: BandChannel, enabled: Boolean, modifier: Mo
                         }
                     },
                     leadingIcon = { Box(Modifier.size(10.dp).background(if (c == BandChannel.ALL) Color.Transparent else colors.of(c), CircleShape)) },
+                    enabled = supported || c == channel,
                     onClick = {
                         open = false
                         onChannel(c)

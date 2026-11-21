@@ -7,6 +7,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.reinanbr.soundpower.SoundPowerApplication
+import com.reinanbr.soundpower.engine.EngineFeatures
+import com.reinanbr.soundpower.engine.EngineMode
+import com.reinanbr.soundpower.engine.RootlessOptions
 import com.reinanbr.soundpower.eq.EqRepository
 import com.reinanbr.soundpower.eq.EqStatus
 import com.reinanbr.soundpower.model.AudioSettings
@@ -22,7 +25,6 @@ import com.reinanbr.soundpower.model.ResponseCurve
 import com.reinanbr.soundpower.model.Stereo
 import com.reinanbr.soundpower.model.Tone
 import com.reinanbr.soundpower.protocol.BandChannel
-import com.reinanbr.soundpower.protocol.Capability
 import com.reinanbr.soundpower.ui.prefs.ThemeMode
 import com.reinanbr.soundpower.ui.prefs.UiPrefsStore
 import kotlinx.coroutines.Dispatchers
@@ -60,10 +62,11 @@ data class EqUiState(
     val persistError: String? = null,
     /** Null until the first poll returns. */
     val status: EqStatus? = null,
+    val engine: EngineMode? = null,
+    val rootless: RootlessOptions = RootlessOptions(),
 ) {
-    /** False when the installed effect would ignore band channels (an older module). */
-    val routingSupported: Boolean
-        get() = status?.capabilities?.let { it and Capability.BAND_CHANNEL != 0 } ?: true
+    /** What the engine can do: an older module cannot route bands, Android's effect cannot mix channels. */
+    val features: EngineFeatures get() = EngineFeatures.of(engine, status)
 }
 
 /**
@@ -93,16 +96,24 @@ class EqViewModel(private val eq: EqRepository, private val prefs: UiPrefsStore)
 
     private val errors = combine(eq.effectError, eq.persistError) { a, b -> a to b }
 
+    private class Engine(val status: EqStatus?, val mode: EngineMode?, val options: RootlessOptions)
+
+    private val engine = combine(status, prefs.engine, prefs.rootless, ::Engine)
+
     val state: StateFlow<EqUiState> =
-        combine(eq.settings, curve, selected, errors, status) { settings, curve, sel, (effectError, persistError), status ->
+        combine(eq.settings, curve, selected, errors, engine) { settings, curve, sel, (effectError, persistError), e ->
             val count = settings?.eq?.parametricBands?.size ?: 0
-            EqUiState(settings, curve, sel.coerceIn(0, max(0, count - 1)), effectError, persistError, status)
+            EqUiState(settings, curve, sel.coerceIn(0, max(0, count - 1)), effectError, persistError, e.status, e.mode, e.options)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EqUiState())
 
     val theme: StateFlow<ThemeMode> = prefs.theme.stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.SYSTEM)
 
     fun setTheme(mode: ThemeMode) {
         viewModelScope.launch { prefs.setTheme(mode) }
+    }
+
+    fun setRootless(options: RootlessOptions) {
+        viewModelScope.launch { prefs.setRootless(options) }
     }
 
     // ---- Main screen -----------------------------------------------------------------------

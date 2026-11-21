@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon's five EQ bars, in one colour for the status bar. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="66"
+    android:viewportHeight="66">
+    <group android:translateX="-21" android:translateY="-20">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M27,52h6a2,2 0,0 1,2 2v22h-10v-22a2,2 0,0 1,2 -2z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M39,38h6a2,2 0,0 1,2 2v36h-10v-36a2,2 0,0 1,2 -2z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M51,30h6a2,2 0,0 1,2 2v44h-10v-44a2,2 0,0 1,2 -2z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M63,44h6a2,2 0,0 1,2 2v30h-10v-30a2,2 0,0 1,2 -2z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M75,56h6a2,2 0,0 1,2 2v18h-10v-18a2,2 0,0 1,2 -2z" />
+    </group>
+</vector>

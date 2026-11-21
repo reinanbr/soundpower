@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.reinanbr.soundpower.R
+import com.reinanbr.soundpower.engine.EngineMode
 import com.reinanbr.soundpower.model.Compressor
 import com.reinanbr.soundpower.model.Limiter
 import com.reinanbr.soundpower.model.Ranges
@@ -64,9 +65,10 @@ internal fun EffectsPage(state: EqUiState, vm: EqViewModel, actions: EqActions) 
             val s = state.settings ?: return@Column
             val on = s.enabled
             ToneCard(s.eq.tone, on, vm, actions.requestValue)
-            StereoCard(s.stereo, on, vm, actions.requestValue)
+            val features = state.features
+            StereoCard(s.stereo, on, features.stereoMix, vm, actions.requestValue)
             CompressorCard(s.compressor, on, vm, actions.requestValue)
-            LimiterCard(s.limiter, on, vm, actions.requestValue)
+            LimiterCard(s.limiter, on, features.mode == EngineMode.ROOTLESS, vm, actions.requestValue)
             Text(
                 stringResource(R.string.eq_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -160,7 +162,14 @@ private fun ToneCard(tone: Tone, on: Boolean, vm: EqViewModel, onRequestValue: (
 }
 
 @Composable
-private fun StereoCard(st: com.reinanbr.soundpower.model.Stereo, on: Boolean, vm: EqViewModel, onRequestValue: (ValueRequest) -> Unit) {
+private fun StereoCard(
+    st: com.reinanbr.soundpower.model.Stereo,
+    on: Boolean,
+    /** Width and mono mix the channels, which Android's effect (no root) cannot do. */
+    mix: Boolean,
+    vm: EqViewModel,
+    onRequestValue: (ValueRequest) -> Unit,
+) {
     val pct = stringResource(R.string.unit_percent)
     val balance = stringResource(R.string.stereo_balance)
     val width = stringResource(R.string.knob_width)
@@ -169,7 +178,8 @@ private fun StereoCard(st: com.reinanbr.soundpower.model.Stereo, on: Boolean, vm
         st.balance >= 0.005f -> stringResource(R.string.balance_right_short, (st.balance * 100).roundToInt())
         else -> stringResource(R.string.balance_centre_short)
     }
-    EffectCard(stringResource(R.string.stereo_section), stringResource(R.string.stereo_width_hint), checked = null) {
+    val hint = if (mix) stringResource(R.string.stereo_width_hint) else stringResource(R.string.stereo_mix_needs_root)
+    EffectCard(stringResource(R.string.stereo_section), hint, checked = null) {
         KnobGrid(
             { m ->
                 val set = { v: Float -> vm.setStereo { it.copy(balance = v) } }
@@ -184,13 +194,13 @@ private fun StereoCard(st: com.reinanbr.soundpower.model.Stereo, on: Boolean, vm
                 ParamKnob(
                     width, st.width, Ranges.WIDTH, stringResource(R.string.percent, (st.width * 100).roundToInt()), set,
                     { onRequestValue(ValueRequest(width, st.width * 100, 0f..200f, pct, 0) { v -> set(v / 100) }) },
-                    m, default = 1f, enabled = on && !st.mono,
+                    m, default = 1f, enabled = on && mix && !st.mono,
                 )
             },
         )
         SwitchRow(
             stringResource(R.string.stereo_mono), st.mono, { v -> vm.setStereo { it.copy(mono = v) } },
-            hint = stringResource(R.string.stereo_mono_hint), enabled = on,
+            hint = stringResource(R.string.stereo_mono_hint), enabled = on && mix,
         )
     }
 }
@@ -249,13 +259,21 @@ private fun CompressorCard(c: Compressor, on: Boolean, vm: EqViewModel, onReques
 }
 
 @Composable
-private fun LimiterCard(l: Limiter, on: Boolean, vm: EqViewModel, onRequestValue: (ValueRequest) -> Unit) {
+private fun LimiterCard(
+    l: Limiter,
+    on: Boolean,
+    /** Android's limiter (no root) follows the level, not the peaks. */
+    levelOnly: Boolean,
+    vm: EqViewModel,
+    onRequestValue: (ValueRequest) -> Unit,
+) {
     val d = Limiter()
     val db = stringResource(R.string.unit_db)
     val ms = stringResource(R.string.unit_ms)
     val ceiling = stringResource(R.string.limiter_ceiling)
     val release = stringResource(R.string.limiter_release)
-    EffectCard(stringResource(R.string.limiter), stringResource(R.string.limiter_hint), l.enabled, { v -> vm.setLimiter { it.copy(enabled = v) } }) { active ->
+    val hint = stringResource(if (levelOnly) R.string.limiter_hint_rootless else R.string.limiter_hint)
+    EffectCard(stringResource(R.string.limiter), hint, l.enabled, { v -> vm.setLimiter { it.copy(enabled = v) } }) { active ->
         val enabled = on && active
         KnobGrid(
             { m ->

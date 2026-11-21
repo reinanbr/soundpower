@@ -165,4 +165,30 @@ object SpIcons {
             close()
         }
     }
+
+    /** A shield with a check: the mode with root, SoundPower's own effect in the system. */
+    val Shield: ImageVector by lazy {
+        lineIcon("shield") {
+            moveTo(12f, 3f)
+            lineTo(19f, 6f)
+            verticalLineTo(11f)
+            curveTo(19f, 15.5f, 16f, 19f, 12f, 21f)
+            curveTo(8f, 19f, 5f, 15.5f, 5f, 11f)
+            verticalLineTo(6f)
+            close()
+            moveTo(9f, 12f)
+            lineTo(11f, 14f)
+            lineTo(15f, 10f)
+        }
+    }
+
+    /** A sound wave: the mode without root, on Android's own audio effects. */
+    val Wave: ImageVector by lazy {
+        lineIcon("wave") {
+            moveTo(3f, 12f)
+            curveTo(5f, 6f, 7f, 6f, 9f, 12f)
+            reflectiveCurveTo(13f, 18f, 15f, 12f)
+            reflectiveCurveTo(19f, 6f, 21f, 12f)
+        }
+    }
 }

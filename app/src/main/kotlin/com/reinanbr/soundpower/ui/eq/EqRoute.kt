@@ -64,11 +64,12 @@ internal class EqActions(
     val reset: () -> Unit,
     val openTool: (EqTool) -> Unit,
     val openSetup: () -> Unit,
+    val changeEngine: () -> Unit,
 )
 
-/** The equalizer, its effects and menu; [onOpenSetup] leaves for the setup screen. */
+/** The equalizer, its effects and menu; [onOpenSetup] and [onChangeEngine] leave for the setup screens. */
 @Composable
-fun EqRoute(onOpenSetup: () -> Unit, vm: EqViewModel = viewModel(factory = EqViewModel.Factory)) {
+fun EqRoute(onOpenSetup: () -> Unit, onChangeEngine: () -> Unit, vm: EqViewModel = viewModel(factory = EqViewModel.Factory)) {
     val state by vm.state.collectAsStateWithLifecycle()
     val theme by vm.theme.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(EqTab.EQUALIZER) }
@@ -108,6 +109,7 @@ fun EqRoute(onOpenSetup: () -> Unit, vm: EqViewModel = viewModel(factory = EqVie
             tool = it
         },
         openSetup = onOpenSetup,
+        changeEngine = onChangeEngine,
     )
 
     val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()

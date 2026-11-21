@@ -198,4 +198,69 @@
         <item quantity="one">Processing %1$d stream</item>
         <item quantity="other">Processing %1$d streams</item>
     </plurals>
+
+    <!-- Engine choice: with root (the Magisk module) or without (Android's own effect). -->
+    <string name="engine_choice_title">How should SoundPower work?</string>
+    <string name="engine_choice_intro">SoundPower can run its own audio engine, installed with a Magisk module, or drive the effect built into Android, which needs no root.</string>
+    <string name="engine_root">With root</string>
+    <string name="engine_root_summary">SoundPower\'s own engine inside the system audio service.</string>
+    <string name="engine_root_point_features">Every feature: mid and side bands, stereo width, mono, a peak limiter</string>
+    <string name="engine_root_point_boot">Works from boot in every app, even when SoundPower is closed</string>
+    <string name="engine_root_point_needs">Needs a rooted phone with Magisk</string>
+    <string name="engine_rootless">Without root</string>
+    <string name="engine_rootless_summary">Android\'s Dynamics Processing effect, driven by this app.</string>
+    <string name="engine_rootless_point_any">Works on any phone with Android 9 or newer</string>
+    <string name="engine_rootless_point_features">Graphic and parametric bands, bass and treble, preamp, balance, compressor and limiter</string>
+    <string name="engine_rootless_point_limits">No mid or side bands, width or mono; a notification stays while it is on; some phones or apps bypass it</string>
+    <string name="engine_choice_later">You can change this later in the menu.</string>
+    <string name="action_continue">Continue</string>
+    <string name="action_change_engine">Choose another mode</string>
+    <string name="setup_try_rootless">No root? SoundPower also works without it, with fewer features.</string>
+
+    <!-- Mode without root. -->
+    <string name="menu_engine">Engine</string>
+    <string name="menu_engine_mode">Mode</string>
+    <string name="rootless_scope">Apply to</string>
+    <string name="rootless_scope_global">All audio</string>
+    <string name="rootless_scope_global_hint">Attaches to the output mix. Most phones allow it; on some it has no effect.</string>
+    <string name="rootless_scope_sessions">Players that announce their audio</string>
+    <string name="rootless_scope_sessions_hint">Only apps that open an audio effect session, as most music players do. Use it where “All audio” has no effect.</string>
+    <string name="rootless_precision">Frequency precision</string>
+    <string name="rootless_precision_fast">Low delay</string>
+    <string name="rootless_precision_balanced">Balanced</string>
+    <string name="rootless_precision_fine">Fine</string>
+    <string name="rootless_precision_detail">Steps of %1$d Hz, %2$d ms of delay</string>
+    <string name="rootless_notification_permission">Show the notification</string>
+    <string name="rootless_notification_permission_hint">The equalizer runs with a notification. Without this permission it still runs, but the notification and its off button stay hidden.</string>
+    <string name="rootless_status_off">The equalizer is off.</string>
+    <string name="rootless_status_waiting">No player has opened its audio yet. Start playback in a player.</string>
+    <string name="rootless_status_global">All audio (output mix)</string>
+    <string name="rootless_status_session">%1$s (session %2$d)</string>
+    <string name="rootless_status_unknown_app">Unknown app</string>
+    <string name="rootless_status_active">Active</string>
+    <string name="rootless_status_taken">Another app controls the effect here.</string>
+    <string name="rootless_status_failed">Android refused the effect: %1$s</string>
+    <plurals name="rootless_status_layout">
+        <item quantity="one">%1$d band, steps of %2$d Hz, %3$d ms of delay</item>
+        <item quantity="other">%1$d bands, steps of %2$d Hz, %3$d ms of delay</item>
+    </plurals>
+    <string name="rootless_status_module_active">SoundPower\'s Magisk module is active too, so both apply the settings. Switch to the root mode or disable the module.</string>
+    <string name="eq_routing_needs_root">Without root, mid and side bands are off: Android\'s effect cannot mix the channels. Choose L+R, L or R, or switch to the root mode.</string>
+    <string name="channel_needs_root">Needs the root mode</string>
+    <string name="stereo_mix_needs_root">Without root only the balance works: width and mono mix the channels, which Android\'s effect cannot do.</string>
+    <string name="limiter_hint_rootless">Without root, Android\'s limiter follows the level, not each peak, so short peaks can still clip. Auto preamp keeps boosts safe.</string>
+
+    <!-- The service that holds the effect without root. -->
+    <string name="rootless_channel">Equalizer without root</string>
+    <string name="rootless_channel_description">Shown while the equalizer runs without root. Android removes the effect when the app stops, so the app stays running.</string>
+    <string name="rootless_notification_title">Equalizer on</string>
+    <string name="rootless_notification_starting">Starting…</string>
+    <string name="rootless_notification_global">Applied to all audio</string>
+    <string name="rootless_notification_failed">Android refused the effect on the output. Open the app for details.</string>
+    <string name="rootless_notification_waiting">Waiting for a player</string>
+    <string name="rootless_turn_off">Turn off</string>
+    <plurals name="rootless_notification_sessions">
+        <item quantity="one">Applied to %1$d player</item>
+        <item quantity="other">Applied to %1$d players</item>
+    </plurals>
 </resources>

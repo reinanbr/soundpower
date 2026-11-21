@@ -53,6 +53,7 @@ fun SetupScreen(
     onReboot: () -> Unit,
     onEnable: () -> Unit,
     onOpenEq: () -> Unit,
+    onChangeEngine: () -> Unit,
 ) {
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.setup_title)) }) }) { padding ->
         Column(
@@ -71,6 +72,11 @@ fun SetupScreen(
             if (state.installLog.isNotEmpty()) InstallLog(state.installLog)
             if (state.installSucceeded == false) {
                 Text(stringResource(R.string.install_failed), color = MaterialTheme.colorScheme.error)
+            }
+            // No root or no Magisk: the mode without root still works.
+            if (state.step == SetupStep.NO_ROOT || state.step == SetupStep.NO_MAGISK) {
+                Text(stringResource(R.string.setup_try_rootless), style = MaterialTheme.typography.bodyMedium)
+                OutlinedButton(onClick = onChangeEngine, enabled = !state.busy) { Text(stringResource(R.string.action_change_engine)) }
             }
         }
     }
