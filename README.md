@@ -5,10 +5,11 @@ An open source, system-wide audio equalizer and processor for rooted Android dev
 SoundPower is a native audio effect, loaded by the device's audio HAL, that processes the output of
 every music app. It is installed through a Magisk module and controlled by a Kotlin app.
 
-> **Status:** early development. Phase 2 (`dsp-core`: parametric EQ, limiter, tests, WAV CLI) and
-> phase 3 (`effect-lib`: the Android audio effect library) are complete and tested on a device. The
-> Magisk module that installs the effect and the app are not written yet, so the effect is not active
-> on any device yet.
+> **Status:** early development. The DSP core (phase 2), the Android effect library (phase 3) and
+> the Magisk module (phase 4) are complete and tested on a device: once installed, the effect runs
+> on music streams that go through the audio mixer (offloaded and direct outputs bypass software
+> effects; see [risks](docs/risks.md)). The app that controls it (phase 5) is not written yet, so
+> the EQ can only be configured with a `state.bin` file for now.
 
 ## Repository layout
 
@@ -17,9 +18,11 @@ every music app. It is installed through a Magisk module and controlled by a Kot
 | `dsp-core/` | Pure C++20 DSP library (no Android dependencies), tests, benchmark and the `sp-cli` WAV tool |
 | `protocol/` | The versioned parameter protocol shared by the effect and the app |
 | `effect-lib/` | Android audio effect library (`libsoundpower.so`), its tests and a libFuzzer target |
-| `magisk-module/` | Magisk module sources and zip builder — phase 4 |
+| `magisk-module/` | The Magisk module: installer and boot scripts, SELinux rules, zip builder, script tests |
 | `app/`, `android-core/` | Kotlin + Jetpack Compose app — phase 5 |
-| `docs/` | [Architecture](docs/architecture.md), [parameter protocol](docs/protocol.md), [risk register](docs/risks.md) |
+| `tools/` | `sp-xmlpatch` (edits the effects XML at install time) and `sp-tone` (device test player) |
+| `scripts/` | `adb-exec.sh` (runs cross-compiled tests on a device), `device-test.sh` (checks an installed module) |
+| `docs/` | [Architecture](docs/architecture.md), [parameter protocol](docs/protocol.md), [risk register](docs/risks.md), [debugging](docs/debugging.md) |
 
 ## Building and testing on a desktop
 
@@ -60,6 +63,30 @@ The library is at `build/android-armv7/effect-lib/libsoundpower.so`. With a devi
 pushed to `/data/local/tmp/soundpower-tests/<abi>/` and run as the shell user (no root, nothing
 installed). Set `ANDROID_SERIAL` to choose a device. Check whether the device's audio HAL is 32- or
 64-bit (`file /vendor/bin/hw/android.hardware.audio*`) to know which ABI matters there.
+
+## Installing the Magisk module
+
+Requirements: a rooted device with Magisk 24 or newer, Android 9 or newer, an ARM CPU, and the
+HIDL effects HAL (the AIDL effects HAL of some Android 14+ devices is not supported yet; the
+installer checks).
+
+```sh
+magisk-module/build.sh             # builds both ABIs, writes out/soundpower-module-v<version>.zip
+adb push out/soundpower-module-v*.zip /data/local/tmp/
+adb shell su -c 'magisk --install-module /data/local/tmp/soundpower-module-v*.zip'
+adb reboot
+scripts/device-test.sh --tone build/android-arm64/tools/sp-tone/sp-tone
+```
+
+Installing from the Magisk app should work too: it runs the zip's `update-binary`, which was tested
+from a root shell, not from the app itself. The installer patches a **copy** of every
+`audio_effects*.xml` the device has, adds `libsoundpower.so` for each ABI the vendor partition
+has, and Magisk mounts these over the originals at boot; the device's files are never modified.
+Until the app exists (phase 5), the effect runs with its defaults, or with a `state.bin` placed
+in `/data/vendor/soundpower/`.
+
+If audio breaks, the module disables itself after repeated audio HAL crashes. See
+[debugging](docs/debugging.md) for diagnostics, logs and manual recovery.
 
 ## Trying the DSP on WAV files
 

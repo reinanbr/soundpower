@@ -26,9 +26,14 @@ SoundPower has four parts, built and tested independently:
 
 ## How audio reaches the effect
 
-1. The Magisk module overlays a copy of the device's own effects configuration (for example
-   `/vendor/etc/audio_effects.xml`). The copy adds a `<library>`, an `<effect>`, and a `<postprocess>`
-   block that applies the effect to `music` streams.
+1. The Magisk module overlays patched copies of the device's own effects configurations. Each copy
+   adds a `<library>`, an `<effect>`, and an `<apply>` in the `music` stream of `<postprocess>`.
+   Two different parsers read these files, and they do not always read the same one: the effects
+   factory in the audio HAL (vendor's `libeffectsconfig`) needs the library and effect, while
+   AudioPolicy in `audioserver` (system's `libeffectsconfig`) needs the effect and the postprocess
+   entry. On the test device (Samsung vendor, LineageOS system), the HAL reads
+   `/vendor/etc/audio_effects_sec.xml` and audioserver reads `/vendor/etc/audio_effects.xml`, so the
+   module patches every `audio_effects*.xml` it finds.
 2. When an app starts playing a music stream, the audio policy attaches one SoundPower **instance
    to that audio session**. AudioFlinger then calls the instance's `process()` with that session's audio.
 3. On Android 8 and later, effect libraries are loaded by the **audio HAL process** through the effects
@@ -144,6 +149,29 @@ AudioFlinger drives it (including `dlopen` of the real library). A libFuzzer tar
 with every buffer sized exactly so that AddressSanitizer catches any overrun. The cross-compiled tests
 run on a device through `scripts/adb-exec.sh`.
 
+## magisk-module
+
+The module never modifies a partition: Magisk mounts the module's files over the originals at
+every boot, and removing the module restores the device.
+
+| Script | When | What it does |
+|---|---|---|
+| `customize.sh` | install | Checks API ≥ 28, Magisk ≥ 24, an ARM CPU and the HIDL effects HAL (refuses AIDL). Runs `sp-xmlpatch` on every `audio_effects*.xml` in `/odm/etc`, `/vendor/etc`, `/vendor/etc/audio/*/` and `/system/etc` (skipping files that are not effects configurations), adds the library to `/vendor/lib/soundfx` and/or `/vendor/lib64/soundfx` depending on which the vendor partition has, sets SELinux contexts (`vendor_configs_file`, `vendor_file`), and warns when another module replaces the same files. |
+| `post-fs-data.sh` | every boot, before the HAL starts | Creates `/data/vendor/soundpower` and labels it `soundpower_data_file` (loading `sepolicy.rule` into the live policy when the kernel does not know the type, i.e. Magisk could not preload it). Saves the list of existing tombstones for the watchdog. Bind-mounts the copies of files on partitions Magisk does not overlay (a separate `/odm`). |
+| `service.sh` | every boot, in the background | Watchdog: for 3 minutes after boot, watches the PID of the process serving the effects factory. Three restarts, or a tombstone that is not in the saved list and has a frame in `libsoundpower.so`, make the module disable itself for the next boot. Then writes `log/diag.txt`. |
+| `diag.sh` | on demand | Prints the HAL, the library mapping, the mounted configurations, the data directory, SELinux denials, the effect's log and the live instances. |
+| `uninstall.sh` | removal | Deletes `/data/vendor/soundpower`. |
+
+`sepolicy.rule` defines `soundpower_data_file` (a `file_type` and `data_file_type`) and lets the
+`hal_audio_server` attribute search and read it. Nothing else is needed: the base policy already lets
+every domain search `/data` and `/data/vendor`, and the library and configurations reuse the
+vendor's own file types.
+
+`sp-xmlpatch` (`tools/xmlpatch`, tinyxml2) first removes every SoundPower entry (so patching is
+idempotent and replaces an older version's entries), then adds the library, the effect and the
+postprocess entries, creating sections and streams only when missing. Comments, the XML
+declaration and every other entry are kept. It is linked statically, so it also runs from recovery.
+
 ## Repository layout
 
 ```
@@ -152,9 +180,9 @@ soundpower/
 ├── protocol/            # UUIDs, parameter IDs, payload layouts (C header) + golden test vectors
 ├── dsp-core/            # include/sp/dsp, src, tests (GoogleTest), bench, cli (sp-cli)
 ├── effect-lib/          # Android effect wrapper (libsoundpower.so), tests, fuzzer
-├── tools/xmlpatch/      # idempotent effects-XML patcher, host + NDK static build (phase 4)
-├── magisk-module/       # module template, fixture tests, zip builder (phase 4)
-├── scripts/             # adb-exec.sh (runs cross-compiled tests on a device); device test script (phase 4)
+├── tools/               # sp-xmlpatch (effects-XML patcher, static for the device), sp-tone (test player)
+├── magisk-module/       # module template (scripts, SELinux rules), host script tests, build.sh
+├── scripts/             # adb-exec.sh (runs cross-compiled tests on a device), device-test.sh
 ├── app/, android-core/  # Gradle modules; Gradle root is the repository root (phase 5)
 ├── third_party/         # pinned, vendored dependencies with their licenses
 ├── docs/
@@ -168,6 +196,7 @@ soundpower/
 | Native build | CMake ≥ 3.22 + Ninja; presets in `CMakePresets.json` |
 | Tests | GoogleTest 1.17.0 (fetched, SHA-256 pinned); libFuzzer (Clang) for the command interface |
 | WAV I/O | dr_wav 0.14.6 (vendored; CLI and, in phase 6, IR loading) |
+| XML | tinyxml2 11.0.0 (vendored; `sp-xmlpatch`) |
 | Android native | NDK r28 (`c++_static`, 16 KB page alignment), ABIs `arm64-v8a` and `armeabi-v7a`, API 28. AOSP effect headers vendored from `android-12.1.0_r27`. |
 | Host build of the AELI glue | Clang only: the AOSP `audio.h` declares C++ overloads inside `extern "C"`, which GCC rejects. GCC builds and tests everything else. |
 | App | Kotlin, Jetpack Compose, Material 3, minSdk 28, latest stable targetSdk, libsu, HiddenApiBypass |
