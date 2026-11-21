@@ -4,6 +4,7 @@ add_library(sp_dsp_core STATIC
     src/limiter.cpp
     src/limits.cpp
     src/parametric_eq.cpp
+    src/processor.cpp
     src/rbj.cpp)
 add_library(soundpower::dsp_core ALIAS sp_dsp_core)
 target_include_directories(sp_dsp_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
