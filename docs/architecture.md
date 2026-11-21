@@ -15,10 +15,10 @@ SoundPower has four parts, built and tested independently:
  │ UI (Compose) → ViewModel│──────────► │ libsoundpower.so  (AELI entry point)         │
  │ EffectController        │ AudioEffect│  ├─ GlobalState (process-wide, control side)  │
  │  (HiddenApiBypass)      │ set/getParam  │   latest params + instance registry        │
- │ RootManager (libsu)     │            │  ├─ EffectContext ×N (one per session)        │
+ │ RootManager (libsu)     │            │  ├─ Instance ×N (one per session)             │
  │ Room / DataStore        │            │  │   command() → validate → GlobalState       │
  └──────────┬──────────────┘            │  │   process() → dsp-core Processor (RT)      │
-            │ su: write state/IR files  │  └─ Worker thread: file loads, IR, GC         │
+            │ su: write state/IR files  │  └─ state.bin loader (on create_effect)       │
             ▼                           └───────────────▲──────────────────────────────┘
    /data/vendor/soundpower/  ── read-only for HAL ───────┘   (loaded via patched audio_effects.xml
    (state.bin, ir/*.wav)                                      <postprocess> on music streams)
@@ -51,8 +51,9 @@ The library keeps a process-wide **GlobalState**:
   (`AudioManager.generateAudioSessionId()`, no tracks). *Whether AudioFlinger accepts an effect on a
   track-less session must be verified on a device in phase 3/4.*
 - The app also writes the full state to `/data/vendor/soundpower/state.bin` (as root). That directory is
-  device-encrypted storage, so it can be read before the user unlocks. The library loads it when the
-  first instance is created, so the EQ is correct from boot even if the app never runs.
+  device-encrypted storage, so it can be read before the user unlocks. The library reads it when an
+  instance is created and the file's inode, size or modification time has changed since the last
+  read, so the EQ is correct from boot even if the app never runs.
 
 ## Processing chain
 
@@ -77,16 +78,71 @@ multiband compressor → M/S stereo width → crossfeed → **lookahead limiter 
 
 | Context | Entry points | Allowed |
 |---|---|---|
-| HAL process thread | `process()` | Atomics, triple-buffer reads, SPSC writes (spectrum ring, stats). **No** allocation, locks, logging or I/O. |
-| HAL binder threads | `command()` | `SET_PARAM`, `SET_CONFIG` and `INIT` take the registry mutex (control side only). `SET_VOLUME` and `SET_DEVICE` touch atomics only, because AudioFlinger may issue them from its mixer thread. |
-| Library worker thread | file and IR loading, resampling, deferred frees, deferred logging | Anything |
+| HAL process thread | `process()` | Atomics, the engine hazard pointer, triple-buffer reads. **No** allocation, locks, logging or I/O. |
+| HAL binder threads | `command()`, `create_effect()`, `release_effect()` | `SET_PARAM`, `GET_PARAM`, `SET_CONFIG`, `INIT` and `RESET` take the GlobalState mutex (control side only). `ENABLE`, `DISABLE`, `SET_VOLUME` and `SET_DEVICE` touch atomics only, because AudioFlinger may issue them from its mixer thread. |
 
-All allocation happens in `prepare()`, called on `EFFECT_CMD_SET_CONFIG`. When a reconfiguration needs
-new memory, a new `Processor` is built on the control side and swapped in atomically. The old one goes
-to the worker thread to be freed (deferred reclamation).
+All allocation happens on the control side. When `EFFECT_CMD_SET_CONFIG` changes the stream format,
+the instance builds a new **engine** (a `dsp-core` `Processor` plus scratch buffers), prepares it and
+publishes it with an atomic exchange. The audio thread announces the engine it is using in a single
+hazard pointer for the duration of each `process()` call. The control thread then waits (sleeping
+100 µs at a time, at most one `process()` call) until the old engine is no longer in use and frees it.
+This replaces the worker-thread reclamation planned in phase 1: v1 has no library thread at all.
+Phase 6 adds one for impulse-response loading.
 
-`dsp-core` enforces these rules in its tests. A global `operator new` counter asserts zero allocations
-inside `process()`, and a ThreadSanitizer preset exercises concurrent parameter updates.
+`dsp-core` and `effect-lib` enforce these rules in their tests. A global `operator new` counter asserts
+zero allocations inside `process()` (through enable, disable, format changes, parameter changes,
+resets and duplicate hand-over), and ThreadSanitizer stress tests run audio, control, configuration
+and instance-churn threads concurrently.
+
+## effect-lib
+
+`libsoundpower.so` exports exactly one symbol, `AELI` (`AUDIO_EFFECT_LIBRARY_INFO_SYM`, an
+`audio_effect_library_t` version 3.0). A linker version script hides everything else, the C++
+runtime is linked statically, and the only `NEEDED` libraries are `libc`, `libm`, `libdl` and `liblog`.
+A build-time test checks all of this, plus 16 KB segment alignment for 64-bit ABIs.
+
+| Source | Role |
+|---|---|
+| `src/android/effect_api.cpp` | The Android ABI: descriptor, `create_effect` / `release_effect` / `get_descriptor`, the `effect_interface_s` table and command parsing. The only file that includes AOSP headers. |
+| `src/global_state.*` | Process-wide parameters, the instance registry, the duplicate-session guard and the `state.bin` loader. |
+| `src/instance.*` | One effect instance: its engine, enable/disable fades, format conversion, statistics. |
+| `src/codec.*`, `src/state_file.*`, `src/wire.h` | Bounds-checked (de)serialization of protocol payloads and `state.bin`. |
+| `src/log.*` | Logging with the fixed tag `SoundPower` (`liblog` on Android, `stderr` on the host when `SP_LOG` is set). Never called from `process()`. |
+
+**Descriptor.** Type `69dc09f7-…`, implementation `23e79ffb-…` (see the [protocol](protocol.md)), flags
+`INSERT | INSERT_LAST | VOLUME_IND | DEVICE_IND`, no offload. `cpuLoad` and `memoryUsage` are declared as
+0 and 1. AudioPolicy adds the declared values of every live effect and refuses new effects above about
+43 MIPS / 512 KB. Postprocess creates one instance per session, so honest per-instance figures would make
+SoundPower (or other effects) fail to attach once a few sessions play at once.
+
+**Streams.** Input and output must have the same sample rate (8–384 kHz) and channel mask (mono or
+stereo) and format (PCM float or PCM 16-bit). The output may be written or accumulated. 16-bit output
+is TPDF-dithered. Anything else makes `SET_CONFIG` fail with `-EINVAL`, keeping the previous configuration.
+
+**Commands.**
+
+| Command | Behavior |
+|---|---|
+| `INIT`, `RESET` | Clear the DSP state (filter history, limiter). |
+| `SET_CONFIG` / `GET_CONFIG` | Validate and apply / report the stream format. Fields not set in `mask` keep their values; a zero mask means all fields. |
+| `ENABLE` / `DISABLE` | Fade the processed signal in or out over 10 ms. After the fade-out, `process()` passes the input through and returns `-ENODATA`, which tells AudioFlinger to stop calling it. |
+| `SET_PARAM` / `GET_PARAM` | The [protocol](protocol.md). Any instance accepts parameters for the whole process. |
+| `SET_DEVICE`, `SET_VOLUME` | Recorded (atomics only) for diagnostics; v1 does not use them. `SET_VOLUME` echoes the volumes unchanged, so the framework still applies the full volume. |
+| `OFFLOAD` | Returns `-EINVAL` for offloaded outputs (the effect is not offloadable). |
+| `DUMP` | Writes one status line to the given file descriptor (`dumpsys media.audio_flinger`). |
+| anything else | `-EINVAL`. |
+
+**Duplicate-session guard.** A second instance on the same session and output (for example, from
+the control-session fallback while postprocess is also active) passes audio through bit-exactly and
+sets `SP_STATUS_FLAG_DUPLICATE_SESSION`. When the first instance is released, the oldest duplicate
+takes over, fading in.
+
+**Tests.** `effect-lib/tests` covers the codec and `state.bin` against the golden vectors, instance
+fades and formats, GlobalState, concurrency (TSan), zero allocation, and the Android API exactly as
+AudioFlinger drives it (including `dlopen` of the real library). A libFuzzer target
+(`effect-lib/fuzz`) feeds arbitrary command sequences, configurations and samples to two instances,
+with every buffer sized exactly so that AddressSanitizer catches any overrun. The cross-compiled tests
+run on a device through `scripts/adb-exec.sh`.
 
 ## Repository layout
 
@@ -95,10 +151,10 @@ soundpower/
 ├── VERSION  LICENSE  README.md  CMakeLists.txt  CMakePresets.json
 ├── protocol/            # UUIDs, parameter IDs, payload layouts (C header) + golden test vectors
 ├── dsp-core/            # include/sp/dsp, src, tests (GoogleTest), bench, cli (sp-cli)
-├── effect-lib/          # Android effect wrapper + desktop host harness and fuzzer (phase 3)
+├── effect-lib/          # Android effect wrapper (libsoundpower.so), tests, fuzzer
 ├── tools/xmlpatch/      # idempotent effects-XML patcher, host + NDK static build (phase 4)
 ├── magisk-module/       # module template, fixture tests, zip builder (phase 4)
-├── scripts/             # device test script (phase 4)
+├── scripts/             # adb-exec.sh (runs cross-compiled tests on a device); device test script (phase 4)
 ├── app/, android-core/  # Gradle modules; Gradle root is the repository root (phase 5)
 ├── third_party/         # pinned, vendored dependencies with their licenses
 ├── docs/
@@ -110,7 +166,8 @@ soundpower/
 | Component | Choice |
 |---|---|
 | Native build | CMake ≥ 3.22 + Ninja; presets in `CMakePresets.json` |
-| Tests | GoogleTest 1.17.0 (fetched, SHA-256 pinned) |
+| Tests | GoogleTest 1.17.0 (fetched, SHA-256 pinned); libFuzzer (Clang) for the command interface |
 | WAV I/O | dr_wav 0.14.6 (vendored; CLI and, in phase 6, IR loading) |
-| Android native | NDK r28 (`c++_static`, 16 KB page alignment), ABIs `arm64-v8a` and `armeabi-v7a`, API 28 |
+| Android native | NDK r28 (`c++_static`, 16 KB page alignment), ABIs `arm64-v8a` and `armeabi-v7a`, API 28. AOSP effect headers vendored from `android-12.1.0_r27`. |
+| Host build of the AELI glue | Clang only: the AOSP `audio.h` declares C++ overloads inside `extern "C"`, which GCC rejects. GCC builds and tests everything else. |
 | App | Kotlin, Jetpack Compose, Material 3, minSdk 28, latest stable targetSdk, libsu, HiddenApiBypass |
