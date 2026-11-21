@@ -24,3 +24,9 @@ add_executable(sp_dsp_core_tests
 target_link_libraries(sp_dsp_core_tests PRIVATE sp_dsp_core GTest::gtest_main)
 sp_set_warnings(sp_dsp_core_tests)
 gtest_discover_tests(sp_dsp_core_tests DISCOVERY_TIMEOUT 60)
+
+# Separate executable: it replaces the global allocation functions.
+add_executable(sp_dsp_core_rt_alloc_test test_rt_alloc.cpp)
+target_link_libraries(sp_dsp_core_rt_alloc_test PRIVATE sp_dsp_core GTest::gtest_main)
+sp_set_warnings(sp_dsp_core_rt_alloc_test)
+gtest_discover_tests(sp_dsp_core_rt_alloc_test DISCOVERY_TIMEOUT 60)
