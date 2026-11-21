@@ -184,6 +184,7 @@ for f in module.prop common.sh post-fs-data.sh service.sh uninstall.sh diag.sh s
 done
 ok "samsung: no stray files" absent "$mod/lib" "$mod/bin"
 ok "samsung: data directory" [ -d "$dev/data/vendor/soundpower" ]
+ok "samsung: data directory permissions" [ "$(perm_of "$dev/data/vendor/soundpower")" = "0:0 0755 u:object_r:vendor_data_file:s0" ]
 ok "samsung: warns about a conflicting module" contains "$out" "Module 'othermod' also replaces /vendor/etc/audio_effects_sec.xml"
 ok "samsung: ignores a disabled module" lacks "$out" "oldmod"
 

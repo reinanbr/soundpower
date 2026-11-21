@@ -11,6 +11,8 @@
 # Magisk reads SKIPUNZIP and sets MODPATH, ZIPFILE and the rest before sourcing this file.
 # shellcheck disable=SC2034,SC2154
 SKIPUNZIP=1
+# magisk --install-module runs with umask 0; set_perm fixes what is kept, this covers the rest.
+umask 022
 
 # ---- Requirements --------------------------------------------------------------------------
 [ "$API" -ge 28 ] || abort "! SoundPower needs Android 9 (API 28) or newer; this is API $API."
@@ -108,8 +110,10 @@ for sp_f in module.prop common.sh post-fs-data.sh service.sh uninstall.sh diag.s
 done
 [ -f "$MODPATH/bind.list" ] && set_perm "$MODPATH/bind.list" 0 0 0644
 
-# The data directory is labelled by post-fs-data.sh at every boot, once sepolicy.rule is loaded.
+# The data directory is labelled soundpower_data_file by post-fs-data.sh at every boot, once
+# sepolicy.rule is loaded; until then it keeps the label of its parent.
 mkdir -p "$SP_DATA_DIR"
+set_perm "$SP_DATA_DIR" 0 0 0755 u:object_r:vendor_data_file:s0
 
 # ---- Conflicts -----------------------------------------------------------------------------
 # Two modules replacing the same file: only one copy is mounted.
