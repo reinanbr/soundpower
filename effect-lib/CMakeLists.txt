@@ -61,3 +61,7 @@ endif()
 if(SP_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
+
+if(SP_BUILD_FUZZERS)
+    add_subdirectory(fuzz)
+endif()

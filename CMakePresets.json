@@ -32,13 +32,26 @@
       "displayName": "Host ThreadSanitizer",
       "inherits": "host-base",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo", "SP_SANITIZE": "thread" }
+    },
+    {
+      "name": "host-fuzz",
+      "displayName": "Host libFuzzer (Clang, ASan + UBSan)",
+      "inherits": "host-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "SP_SANITIZE": "address,undefined",
+        "SP_BUILD_FUZZERS": "ON"
+      }
     }
   ],
   "buildPresets": [
     { "name": "host-debug", "configurePreset": "host-debug" },
     { "name": "host-release", "configurePreset": "host-release" },
     { "name": "host-asan", "configurePreset": "host-asan" },
-    { "name": "host-tsan", "configurePreset": "host-tsan" }
+    { "name": "host-tsan", "configurePreset": "host-tsan" },
+    { "name": "host-fuzz", "configurePreset": "host-fuzz" }
   ],
   "testPresets": [
     {
@@ -50,6 +63,7 @@
     { "name": "host-debug", "inherits": "test-base", "configurePreset": "host-debug" },
     { "name": "host-release", "inherits": "test-base", "configurePreset": "host-release" },
     { "name": "host-asan", "inherits": "test-base", "configurePreset": "host-asan" },
-    { "name": "host-tsan", "inherits": "test-base", "configurePreset": "host-tsan" }
+    { "name": "host-tsan", "inherits": "test-base", "configurePreset": "host-tsan" },
+    { "name": "host-fuzz", "inherits": "test-base", "configurePreset": "host-fuzz" }
   ]
 }

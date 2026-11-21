@@ -18,6 +18,7 @@ endif()
 
 option(SP_BUILD_TESTS "Build the dsp-core test suite" ${_sp_host_default})
 option(SP_BUILD_TOOLS "Build sp-cli and sp-bench" ${_sp_host_default})
+option(SP_BUILD_FUZZERS "Build the libFuzzer targets (Clang only)" OFF)
 option(SP_WERROR "Treat compiler warnings as errors" OFF)
 set(SP_SANITIZE "" CACHE STRING "Comma-separated sanitizers, e.g. 'address,undefined' or 'thread'")
 
@@ -27,6 +28,14 @@ include(SoundPowerCompilerOptions)
 if(SP_SANITIZE)
     add_compile_options(-fsanitize=${SP_SANITIZE} -fno-omit-frame-pointer -fno-sanitize-recover=all)
     add_link_options(-fsanitize=${SP_SANITIZE})
+endif()
+
+if(SP_BUILD_FUZZERS)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "SP_BUILD_FUZZERS needs Clang (libFuzzer)")
+    endif()
+    # Coverage instrumentation everywhere; only the fuzz targets link the libFuzzer driver.
+    add_compile_options(-fsanitize=fuzzer-no-link)
 endif()
 
 if(SP_BUILD_TESTS)
