@@ -98,12 +98,26 @@ struct LimiterParams {
     bool enabled = true;
 };
 
+/// The stream volume when the chain applies it itself (direct volume control): the mixer then
+/// feeds the chain at full scale, and the chain applies the volume after the compressor and just
+/// before the limiter. Linear gains in 0..1 per channel.
+struct StreamVolume {
+    bool apply = false;  ///< false: the mixer applied the volume already, the chain applies none
+    double left = 1.0;
+    double right = 1.0;  ///< second channel; a mono stream uses the larger of the two
+
+    bool operator==(const StreamVolume&) const = default;
+};
+
 struct ChainParams {
     EqParams eq;
     ToneParams tone;
     double preampDb = 0.0;
     bool autoPreamp = true;  ///< subtract the EQ curve's positive peak from the preamp
     bool bypass = false;     ///< A/B bypass: crossfade to the latency-aligned dry signal
+    /// Direct volume control requested. The chain itself only follows StreamVolume; the effect
+    /// reads this flag when its library loads to decide whether it takes over the stream volume.
+    bool directVolume = false;
     StereoParams stereo;
     CompressorParams compressor;
     LimiterParams limiter;

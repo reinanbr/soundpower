@@ -22,6 +22,7 @@ constexpr double kBypassRampMs = 20.0;
 constexpr double kStereoRampMs = 20.0;
 constexpr double kEqCrossfadeMs = 10.0;
 constexpr double kFadeMs = 2.0;
+constexpr double kVolumeRampMs = 10.0;
 
 std::uint32_t msToFrames(double ms, double sampleRate) {
     return static_cast<std::uint32_t>(std::max(1.0, std::round(ms * sampleRate / 1000.0)));
@@ -46,6 +47,7 @@ bool Processor::prepare(double sampleRate, std::size_t channels) {
     bypassRampFrames_ = msToFrames(kBypassRampMs, sampleRate);
     eqCrossfadeFrames_ = msToFrames(kEqCrossfadeMs, sampleRate);
     fadeFrames_ = msToFrames(kFadeMs, sampleRate);
+    volumeRampFrames_ = msToFrames(kVolumeRampMs, sampleRate);
     stereo_.prepare(msToFrames(kStereoRampMs, sampleRate));
 
     limiter_.prepare(sampleRate, channels);
@@ -74,10 +76,11 @@ RtParams Processor::design(const ChainParams& params) {
     r.eq = designEq(p.eq, p.tone, sampleRate_);
     r.eqSerial = (r.eq == lastDesign_.eq) ? lastDesign_.eqSerial : ++eqSerialCounter_;
 
-    double preampDb = p.preampDb;
-    if (p.autoPreamp) preampDb -= std::max(0.0, eqPeakGainDb(r.eq, sampleRate_));
+    const double cutDb = p.autoPreamp ? std::max(0.0, eqPeakGainDb(r.eq, sampleRate_)) : 0.0;
+    const double preampDb = p.preampDb - cutDb;
     effectivePreampDb_ = preampDb;
     r.preampGain = dbToGain(preampDb);
+    r.autoPreampCut = dbToGain(cutDb);
 
     r.stereo = designStereo(p.stereo);
     r.compressor = designCompressor(p.compressor, sampleRate_);
@@ -115,6 +118,7 @@ void Processor::applyParams(const RtParams& params, bool instant) noexcept {
         limiter_.setDesign(current_.limiter);
         resetAudioState();
         latency_.store(limiter_.latency(), std::memory_order_relaxed);
+        updateVolumeTargets(/*instant=*/true);
         return;
     }
 
@@ -146,6 +150,49 @@ void Processor::applyParams(const RtParams& params, bool instant) noexcept {
     }
 
     current_ = params;
+    updateVolumeTargets(/*instant=*/false);  // auto-preamp's cut may have changed
+}
+
+void Processor::setStreamVolume(const StreamVolume& volume, bool instant) noexcept {
+    StreamVolume v = volume;
+    // Clamp, NaN included: the volume stage never amplifies and never goes negative.
+    v.left = v.left > 0.0 ? std::min(v.left, 1.0) : 0.0;
+    v.right = v.right > 0.0 ? std::min(v.right, 1.0) : 0.0;
+    if (v == streamVolume_ && !instant) return;
+    streamVolume_ = v;
+    if (prepared_) updateVolumeTargets(instant);
+}
+
+void Processor::updateVolumeTargets(bool instant) noexcept {
+    const std::size_t nch = channels_;
+    if (nch == 0) return;
+    std::array<double, kMaxChannels> wet{1.0, 1.0};
+    std::array<double, kMaxChannels> dry{1.0, 1.0};
+    if (streamVolume_.apply) {
+        std::array<double, kMaxChannels> v{streamVolume_.left, streamVolume_.right};
+        if (nch == 1) v[0] = std::max(v[0], v[1]);
+        const double loudest = nch == 1 ? v[0] : std::max(v[0], v[1]);
+        // Give back auto-preamp's cut as far as the volume keeps the peak at or under unity.
+        const double restore = loudest > 0.0 ? std::min(current_.autoPreampCut, 1.0 / loudest)
+                                             : current_.autoPreampCut;
+        for (std::size_t ch = 0; ch < nch; ++ch) {
+            wet[ch] = v[ch] * restore;
+            dry[ch] = v[ch];
+        }
+    }
+    for (std::size_t ch = 0; ch < nch; ++ch) {
+        if (instant) {
+            volumeWet_[ch].reset(wet[ch]);
+            volumeDry_[ch].reset(dry[ch]);
+        } else {
+            if (volumeWet_[ch].target() != wet[ch]) {
+                volumeWet_[ch].setTarget(wet[ch], volumeRampFrames_);
+            }
+            if (volumeDry_[ch].target() != dry[ch]) {
+                volumeDry_[ch].setTarget(dry[ch], volumeRampFrames_);
+            }
+        }
+    }
 }
 
 void Processor::process(const float* in, float* out, std::size_t frames) noexcept {
@@ -242,9 +289,17 @@ void Processor::processBlock(const float* in, float* out, std::size_t frames) no
         nonFinite_.store(true, std::memory_order_relaxed);
     }
 
-    // ---- Limiter (always on) ---------------------------------------------------------------
+    // ---- Stereo, compressor, stream volume, limiter -------------------------------------------
     stereo_.process(wet, nch, frames);
     compressor_.process(wet, nch, frames);
+    for (std::size_t ch = 0; ch < nch; ++ch) {
+        LinearRamp& g = volumeWet_[ch];
+        if (g.ramping()) {
+            for (std::size_t f = 0; f < frames; ++f) wet[ch][f] *= g.next();
+        } else if (const double v = g.current(); v != 1.0) {
+            for (std::size_t f = 0; f < frames; ++f) wet[ch][f] *= v;
+        }
+    }
     limiter_.process(wet, nch, frames);
 
     // ---- Bypass crossfade, structural fade, interleave -------------------------------------
@@ -269,7 +324,7 @@ void Processor::processBlock(const float* in, float* out, std::size_t frames) no
         for (std::size_t ch = 0; ch < nch; ++ch) {
             // Exact endpoints: fully wet must not round above the limiter ceiling, and fully
             // dry must be bit-identical to the input.
-            const double d = dry_[ch][f];
+            const double d = dry_[ch][f] * volumeDry_[ch].next();
             const double s = wetA_[ch][f];
             double y = w == 1.0 ? s : (w == 0.0 ? d : d + w * (s - d));
             y *= fade;
@@ -288,6 +343,7 @@ void Processor::processBlock(const float* in, float* out, std::size_t frames) no
 
     limiterGrDb_.store(static_cast<float>(gainToDb(limiter_.takeMinGain())),
                        std::memory_order_relaxed);
+    volumeStageGain_.store(static_cast<float>(volumeWet_[0].current()), std::memory_order_relaxed);
 }
 
 }  // namespace sp::dsp

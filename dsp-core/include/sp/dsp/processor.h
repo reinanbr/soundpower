@@ -23,6 +23,9 @@ struct RtParams {
     EqDesign eq{};
     std::uint64_t eqSerial = 0;  ///< changes only when the EQ design changes
     double preampGain = 1.0;     ///< linear, auto-preamp included
+    /// Linear gain auto-preamp took off the curve's peak (1 when auto-preamp is off). With
+    /// direct volume control the volume stage gives back as much of it as the volume allows.
+    double autoPreampCut = 1.0;
     StereoDesign stereo{};
     CompressorDesign compressor{};
     LimiterDesign limiter{};
@@ -30,8 +33,16 @@ struct RtParams {
 };
 
 /// The complete SoundPower chain for one stream: preamp → parametric EQ and tone shelves →
-/// stereo stage → compressor → limiter, with a latency-aligned dry path for click-free A/B
-/// bypass.
+/// stereo stage → compressor → stream volume → limiter, with a latency-aligned dry path for
+/// click-free A/B bypass.
+///
+/// The stream volume stage is used only with direct volume control (setStreamVolume() with
+/// `apply`): the input then arrives at full scale, the volume is applied just before the
+/// limiter, and the stage gives back the headroom auto-preamp took whenever the volume leaves
+/// room for it: its gain is min(volume · cut, 1) per unit of volume, where `cut` is the
+/// auto-preamp attenuation. So the EQ boost is heard in full below the volume where it would
+/// clip, and the peak never exceeds what auto-preamp alone allows. The dry path gets the plain
+/// volume.
 ///
 /// Threading contract:
 ///  - prepare() is control-side and must never run concurrently with process().
@@ -92,6 +103,16 @@ public:
 
     // ---- Audio thread --------------------------------------------------------------------
 
+    /// The stream volume for the next process() calls. Changes ramp over 10 ms, unless
+    /// `instant` (use it for the first block of a stream, which must not ramp from unity).
+    void setStreamVolume(const StreamVolume& volume, bool instant = false) noexcept;
+
+    /// Gain of the volume stage on the first channel over the last block (1 without direct
+    /// volume control), for status reports.
+    [[nodiscard]] float volumeStageGain() const noexcept {
+        return volumeStageGain_.load(std::memory_order_relaxed);
+    }
+
     /// Processes interleaved float frames. `in` and `out` may be the same buffer.
     /// Before a successful prepare() this does nothing (the channel count is unknown); the
     /// caller is responsible for pass-through in that state.
@@ -112,6 +133,8 @@ private:
     void resetAudioState() noexcept;
     void setDryDelay(std::uint32_t frames) noexcept;
     void processBlock(const float* in, float* out, std::size_t frames) noexcept;
+    /// Moves the volume ramps toward the gains for `streamVolume_` and the current design.
+    void updateVolumeTargets(bool instant) noexcept;
 
     // Format (written by prepare() only).
     double sampleRate_ = 0.0;
@@ -121,6 +144,7 @@ private:
     std::uint32_t bypassRampFrames_ = 0;
     std::uint32_t eqCrossfadeFrames_ = 0;
     std::uint32_t fadeFrames_ = 0;
+    std::uint32_t volumeRampFrames_ = 0;
 
     // Control side.
     ChainParams requested_{};
@@ -150,6 +174,9 @@ private:
     Compressor compressor_;
     LimiterDesign pendingLimiter_{};
     Limiter limiter_;
+    StreamVolume streamVolume_{};
+    std::array<LinearRamp, kMaxChannels> volumeWet_{};  ///< before the limiter
+    std::array<LinearRamp, kMaxChannels> volumeDry_{};  ///< on the dry path
 
     std::array<std::vector<double>, kMaxChannels> dryDelay_{};
     std::size_t dryCapacity_ = 0;
@@ -164,6 +191,7 @@ private:
     // Audio → anyone.
     std::atomic<std::uint32_t> latency_{0};
     std::atomic<float> limiterGrDb_{0.0f};
+    std::atomic<float> volumeStageGain_{1.0f};
     std::atomic<bool> nonFinite_{false};
 };
 
