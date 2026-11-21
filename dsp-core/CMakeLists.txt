@@ -12,3 +12,7 @@ target_compile_features(sp_dsp_core PUBLIC cxx_std_20)
 set_target_properties(sp_dsp_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 sp_set_warnings(sp_dsp_core)
 sp_realtime_target(sp_dsp_core)
+
+if(SP_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
