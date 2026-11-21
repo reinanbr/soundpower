@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dsp-core:
+    name: dsp-core (${{ matrix.toolchain.name }}, ${{ matrix.preset }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - { name: gcc, cc: gcc, cxx: g++ }
+          - { name: clang, cc: clang, cxx: clang++ }
+        preset: [host-debug, host-release, host-asan]
+        include:
+          - toolchain: { name: gcc, cc: gcc, cxx: g++ }
+            preset: host-tsan
+    env:
+      CC: ${{ matrix.toolchain.cc }}
+      CXX: ${{ matrix.toolchain.cxx }}
+      PRESET: ${{ matrix.preset }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+
+      - name: Reduce ASLR entropy for ThreadSanitizer
+        if: matrix.preset == 'host-tsan'
+        # TSan cannot map its shadow memory with the runner kernel's default mmap_rnd_bits.
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Configure
+        run: cmake --preset "$PRESET" -DSP_WERROR=ON
+
+      - name: Build
+        run: cmake --build --preset "$PRESET" --parallel
+
+      - name: Test
+        run: ctest --preset "$PRESET" --parallel 4
+
+      - name: Benchmark (informational)
+        if: matrix.preset == 'host-release'
+        run: |
+          {
+            echo "### dsp-core benchmark (${{ matrix.toolchain.name }}, x86-64 runner)"
+            echo '```'
+            "build/$PRESET/dsp-core/bench/sp-bench" --seconds 2
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Phase 3 adds: effect-lib NDK builds (arm64-v8a, armeabi-v7a) + NEEDED-library check.
+  # Phase 4 adds: Magisk module zip as a build artifact.
+  # Phase 5 adds: Android app build and unit tests.
