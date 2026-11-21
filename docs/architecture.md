@@ -7,7 +7,7 @@ SoundPower has four parts, built and tested independently:
 | `dsp-core` | C++20 | anywhere (desktop for tests) | All signal processing. No Android dependencies. |
 | `effect-lib` | C++20 | the audio HAL process on the device | Exposes `dsp-core` as an Android audio effect (`libsoundpower.so`). |
 | `magisk-module` | shell + a small native tool | install time / boot | Installs the library and patches the device's effects configuration systemlessly. |
-| `app` | Kotlin, Jetpack Compose | user space | Onboarding, EQ editing, presets, per-device profiles, diagnostics. |
+| `app` | Kotlin, Jetpack Compose | user space | Setup (root, Magisk, module install, checks) and the EQ. Presets, per-device profiles and diagnostics come in later phases. |
 
 ```
  Kotlin app (MVVM)                         audio HAL process (hal_audio_server domain)
@@ -15,8 +15,8 @@ SoundPower has four parts, built and tested independently:
  │ UI (Compose) → ViewModel│──────────► │ libsoundpower.so  (AELI entry point)         │
  │ EffectController        │ AudioEffect│  ├─ GlobalState (process-wide, control side)  │
  │  (HiddenApiBypass)      │ set/getParam  │   latest params + instance registry        │
- │ RootManager (libsu)     │            │  ├─ Instance ×N (one per session)             │
- │ Room / DataStore        │            │  │   command() → validate → GlobalState       │
+ │ ModuleManager (libsu)   │            │  ├─ Instance ×N (one per session)             │
+ │ DataStore (state.bin)   │            │  │   command() → validate → GlobalState       │
  └──────────┬──────────────┘            │  │   process() → dsp-core Processor (RT)      │
             │ su: write state/IR files  │  └─ state.bin loader (on create_effect)       │
             ▼                           └───────────────▲──────────────────────────────┘
@@ -53,8 +53,9 @@ The library keeps a process-wide **GlobalState**:
 - GlobalState designs filter coefficients for **each registered instance at its own sample rate**, then
   publishes them to that instance through a lock-free triple buffer.
 - The app controls the effect through its own **control instance**, attached to a private audio session
-  (`AudioManager.generateAudioSessionId()`, no tracks). *Whether AudioFlinger accepts an effect on a
-  track-less session must be verified on a device in phase 3/4.*
+  (`AudioManager.generateAudioSessionId()`, no tracks). AudioFlinger accepts it and attaches it to the
+  first output thread; on the test device, a music stream's instance follows the app's changes live
+  (see [app](#app)).
 - The app also writes the full state to `/data/vendor/soundpower/state.bin` (as root). That directory is
   device-encrypted storage, so it can be read before the user unlocks. The library reads it when an
   instance is created and the file's inode, size or modification time has changed since the last
@@ -172,6 +173,47 @@ idempotent and replaces an older version's entries), then adds the library, the 
 postprocess entries, creating sections and streams only when missing. Comments, the XML
 declaration and every other entry are kept. It is linked statically, so it also runs from recovery.
 
+## app
+
+Gradle modules; the Gradle root is the repository root.
+
+| Module | Kind | Contents |
+|---|---|---|
+| `android-core:protocol` | JVM | Kotlin mirror of `protocol.h`: payload codecs and the `state.bin` format. Its tests read `protocol/vectors/*.hex` and must produce the same bytes as the C++ side. |
+| `android-core:model` | JVM | `EqSettings` (what the app stores and sends) and the 10-band graphic layout (`GraphicEq`), which is only a set of parametric bands. |
+| `android-core:data` | JVM | DataStore of `EqSettings`. The file holds exactly the bytes of `state.bin`. |
+| `android-core:root` | Android | `RootShell` (libsu) and `ModuleManager`: Magisk version, module state, `magisk --install-module`, reboot, the state-file write, `dumpsys` parsing. Its tests run the shell scripts in the host's `sh` against a temporary tree. |
+| `android-core:effect` | Android | `EffectController` and its `AudioEffect` transport (HiddenApiBypass). |
+| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, and `AppContainer` (dependency injection by hand). |
+
+**Control path.** `EffectController` creates an `AudioEffect` with SoundPower's type and
+implementation UUIDs on a session from `generateAudioSessionId()`. That constructor and
+`setParameter/getParameter(byte[], byte[])` are hidden APIs: HiddenApiBypass exempts `AudioEffect`
+from the hidden API checks, and the members are used through reflection. AudioFlinger puts an
+effect whose session no thread has on the first output thread. On the test device, the HAL logs
+`created instance for session 225, io 13` (the primary output). The controller reads
+`PROTOCOL_INFO` first and refuses another major version, and it recreates the instance once on
+`ERROR_DEAD_OBJECT` (audioserver restarted). It needs `MODIFY_AUDIO_SETTINGS`, not root.
+
+**Settings flow.** `EqRepository` holds the live settings. Every change goes to the effect at once
+(the latest value wins when changes come faster than binder calls). After 500 ms without changes,
+the settings are saved to DataStore and copied to `state.bin` as root: the app writes them to its
+cache, then the root shell copies that file to `.state.bin.new` in the data directory, sets mode
+0644 and the `soundpower_data_file` label, and renames it over `state.bin`. The rename is atomic
+and gives the file a new inode, so the library reloads it at the next instance. `cmp` skips
+identical writes. At start the app writes `state.bin` once, so a fresh install gets the app's
+settings from the next boot on.
+
+**Setup.** `SetupRepository.check()` asks for root, reads `magisk -v` and `-V`, the module state
+(`/data/adb/modules/soundpower`, `modules_update/soundpower`, and Magisk's `disable`, `remove` and
+`update` flags), checks `AudioEffect.queryEffects()`, connects the control instance and counts the
+effect's lines in `dumpsys media.audio_flinger`. The result maps to one step: no root, no Magisk,
+install, update, reboot, disabled, not loaded, incompatible, or ready. The APK bundles the module
+zip built from the same tree (`magisk-module/build.sh`; the Gradle task `bundleMagiskModule` fails
+with a hint when it is missing). Installing runs `magisk --install-module` and streams its output.
+Without root, a loaded effect can still be controlled: only installing, persisting and `dumpsys`
+need root.
+
 ## Repository layout
 
 ```
@@ -183,7 +225,7 @@ soundpower/
 ├── tools/               # sp-xmlpatch (effects-XML patcher, static for the device), sp-tone (test player)
 ├── magisk-module/       # module template (scripts, SELinux rules), host script tests, build.sh
 ├── scripts/             # adb-exec.sh (runs cross-compiled tests on a device), device-test.sh
-├── app/, android-core/  # Gradle modules; Gradle root is the repository root (phase 5)
+├── app/, android-core/  # the Android app and its Kotlin modules; Gradle root is the repository root
 ├── third_party/         # pinned, vendored dependencies with their licenses
 ├── docs/
 └── .github/workflows/
@@ -199,4 +241,4 @@ soundpower/
 | XML | tinyxml2 11.0.0 (vendored; `sp-xmlpatch`) |
 | Android native | NDK r28 (`c++_static`, 16 KB page alignment), ABIs `arm64-v8a` and `armeabi-v7a`, API 28. AOSP effect headers vendored from `android-12.1.0_r27`. |
 | Host build of the AELI glue | Clang only: the AOSP `audio.h` declares C++ overloads inside `extern "C"`, which GCC rejects. GCC builds and tests everything else. |
-| App | Kotlin, Jetpack Compose, Material 3, minSdk 28, latest stable targetSdk, libsu, HiddenApiBypass |
+| App | Gradle 9.9.2, AGP 9.5.2 (built-in Kotlin), Kotlin 2.4.21, Compose BOM 2026.11.01 (Material 3), compileSdk 37.2, targetSdk 37, minSdk 28, DataStore 1.3.0, libsu 6.0.0, HiddenApiBypass 6.2. Versions in `gradle/libs.versions.toml`. |
