@@ -25,10 +25,16 @@ data class MasterParams(
     val preampDb: Float = 0f,
     /** Since 1.1; a 1.0 effect ignores the flag and keeps limiting. */
     val limiterEnabled: Boolean = true,
+    /**
+     * Direct volume control, since 1.2. The effect reads it only when its library is loaded, so a
+     * change takes effect after the audio HAL restarts ([EffectStatus.volumeControlClaimed] tells
+     * what the running library decided). Older effects ignore it.
+     */
+    val directVolume: Boolean = false,
 ) {
     fun encode(): ByteArray {
         val flags = (if (bypass) FLAG_BYPASS else 0) or (if (autoPreamp) FLAG_AUTO_PREAMP else 0) or
-            (if (limiterEnabled) 0 else FLAG_LIMITER_OFF)
+            (if (limiterEnabled) 0 else FLAG_LIMITER_OFF) or (if (directVolume) FLAG_DIRECT_VOLUME else 0)
         return Wire.writer(SIZE).putInt(flags).putFloat(preampDb).array()
     }
 
@@ -37,6 +43,7 @@ data class MasterParams(
         const val FLAG_BYPASS = 1 shl 0
         const val FLAG_AUTO_PREAMP = 1 shl 1
         const val FLAG_LIMITER_OFF = 1 shl 2
+        const val FLAG_DIRECT_VOLUME = 1 shl 3
 
         fun decode(bytes: ByteArray): MasterParams {
             val r = Wire.reader(bytes, SIZE, "MASTER")
@@ -46,6 +53,7 @@ data class MasterParams(
                 autoPreamp = flags and FLAG_AUTO_PREAMP != 0,
                 preampDb = r.getFloat(),
                 limiterEnabled = flags and FLAG_LIMITER_OFF == 0,
+                directVolume = flags and FLAG_DIRECT_VOLUME != 0,
             )
         }
     }
@@ -267,11 +275,19 @@ data class EffectStatus(
 ) {
     val bypassed: Boolean get() = flags and FLAG_BYPASSED != 0
 
+    /** The running library claims volume control (direct volume control was on when it loaded). */
+    val volumeControlClaimed: Boolean get() = flags and FLAG_VOLUME_CTRL != 0
+
+    /** An enabled instance in the effect's process applies its stream's volume right now. */
+    val volumeApplied: Boolean get() = flags and FLAG_VOLUME_APPLIED != 0
+
     companion object {
         const val SIZE = 48
         const val FLAG_BYPASSED = 1 shl 0
         const val FLAG_DUPLICATE_SESSION = 1 shl 1
         const val FLAG_NONFINITE_INPUT = 1 shl 2
+        const val FLAG_VOLUME_CTRL = 1 shl 3 // since 1.2
+        const val FLAG_VOLUME_APPLIED = 1 shl 4 // since 1.2
 
         const val STATE_UNINITIALIZED = 0
         const val STATE_INITIALIZED = 1

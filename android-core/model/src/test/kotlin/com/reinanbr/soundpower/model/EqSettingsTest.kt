@@ -9,6 +9,7 @@ import com.reinanbr.soundpower.protocol.EqState
 import com.reinanbr.soundpower.protocol.CompressorParams
 import com.reinanbr.soundpower.protocol.LimiterParams
 import com.reinanbr.soundpower.protocol.ParamId
+import com.reinanbr.soundpower.protocol.Protocol
 import com.reinanbr.soundpower.protocol.ProtocolException
 import com.reinanbr.soundpower.protocol.StateFile
 import com.reinanbr.soundpower.protocol.StereoParams
@@ -48,7 +49,10 @@ class EqSettingsTest {
         assertEquals(ToneParams(false, 7.5f, 62.5f, -3f, 12000f), s.tone)
         assertEquals(StereoParams(true, -0.25f, 1.5f), s.stereo)
         assertEquals(CompressorParams(true, -24f, 4.5f, 2.5f, 400f, 0f, 6f), s.compressor)
-        assertContentEquals(bytes, s.toStateFile())
+        // Written back with the same entries, under the current protocol version.
+        val written = StateFile.decode(s.toStateFile())
+        assertEquals(Protocol.VERSION_MINOR, written.minor)
+        assertEquals(StateFile.decode(bytes).entries, written.entries)
     }
 
     @Test

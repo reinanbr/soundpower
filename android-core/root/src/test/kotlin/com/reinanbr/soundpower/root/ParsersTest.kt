@@ -64,6 +64,21 @@ class ParsersTest {
         assertEquals(-3, dumps[1].sessionId)
         assertFalse(dumps[1].isActive)
         assertEquals(1, dumps[1].flags)
+        assertNull(dumps[0].volume)
+    }
+
+    @Test
+    fun effectDumpLinesWithTheStreamVolume() {
+        val line = "SoundPower 0.2.0 (protocol 1.2): session 94321 io 13, active, 48000 Hz, 2 ch, format 0x5, " +
+            "cpu avg 10.88% peak 15.93%, limiter 0.00 dB, 112320 frames, flags 0x18, 1 instances, " +
+            "volume -14.4/-14.4 dB applied (stage -14.4 dB), peak in -40.0 out -66.2 dBFS"
+        val dump = EffectDump.parse(listOf(line)).single()
+        assertEquals(0x18, dump.flags)
+        assertEquals(EffectDump.StreamVolume(-14.4f, -14.4f, true, -14.4f, -40f, -66.2f), dump.volume)
+        val byMixer = line.replace("applied (stage -14.4 dB)", "by mixer (stage 0.0 dB)").replace("-40.0", "-999.0")
+        val v = EffectDump.parse(listOf(byMixer)).single().volume
+        assertEquals(false, v?.applied)
+        assertEquals(-999f, v?.inputPeakDb)
     }
 
     @Test

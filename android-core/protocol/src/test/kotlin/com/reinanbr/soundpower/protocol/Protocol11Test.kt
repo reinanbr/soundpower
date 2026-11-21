@@ -94,7 +94,7 @@ class Protocol11Test {
             StateFile.Entry(ParamId.STEREO, stereo.encode()),
             StateFile.Entry(ParamId.COMPRESSOR, compressor.encode()),
         )
-        assertContentEquals(GoldenVectors.bytes("state_file_v1_1"), StateFile.encode(entries))
+        assertContentEquals(GoldenVectors.bytes("state_file_v1_1"), StateFile.encode(entries, minor = 1))
         val decoded = StateFile.decode(GoldenVectors.bytes("state_file_v1_1"))
         assertEquals(1, decoded.minor)
         assertEquals(entries, decoded.entries)

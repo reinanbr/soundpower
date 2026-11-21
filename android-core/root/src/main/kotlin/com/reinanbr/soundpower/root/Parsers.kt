@@ -88,15 +88,31 @@ data class EffectDump(
     val frames: Long,
     val flags: Int,
     val instances: Int,
+    /** Since protocol 1.2; null for older libraries. */
+    val volume: StreamVolume? = null,
 ) {
     val isActive: Boolean get() = state == "active"
+
+    /** The stream volume part of the line, and the input/output peaks since the previous dump. */
+    data class StreamVolume(
+        val leftDb: Float,
+        val rightDb: Float,
+        /** True when SoundPower applies the volume itself (direct volume control). */
+        val applied: Boolean,
+        val stageDb: Float,
+        /** -999 means silence. */
+        val inputPeakDb: Float,
+        val outputPeakDb: Float,
+    )
 
     companion object {
         // effect-lib/src/android/effect_api.cpp, dump().
         private val LINE = Regex(
             """SoundPower (\d+\.\d+\.\d+) \(protocol \d+\.\d+\): session (-?\d+) io (-?\d+), (\w+), """ +
                 """(\d+) Hz, (\d+) ch, format 0x([0-9a-f]+), cpu avg ([\d.]+)% peak ([\d.]+)%, """ +
-                """limiter (-?[\d.]+) dB, (\d+) frames, flags 0x([0-9a-f]+), (\d+) instances""",
+                """limiter (-?[\d.]+) dB, (\d+) frames, flags 0x([0-9a-f]+), (\d+) instances""" +
+                """(?:, volume (-?[\d.]+)/(-?[\d.]+) dB (applied|by mixer) \(stage (-?[\d.]+) dB\), """ +
+                """peak in (-?[\d.]+) out (-?[\d.]+) dBFS)?""",
         )
 
         fun parse(lines: List<String>): List<EffectDump> = lines.mapNotNull { line ->
@@ -115,6 +131,11 @@ data class EffectDump(
                 frames = g[11].toLong(),
                 flags = g[12].toInt(16),
                 instances = g[13].toInt(),
+                volume = if (g[14].isEmpty()) {
+                    null
+                } else {
+                    StreamVolume(g[14].toFloat(), g[15].toFloat(), g[16] == "applied", g[17].toFloat(), g[18].toFloat(), g[19].toFloat())
+                },
             )
         }
     }

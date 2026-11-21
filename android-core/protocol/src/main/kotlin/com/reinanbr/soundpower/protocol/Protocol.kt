@@ -6,7 +6,7 @@ import java.util.UUID
 /** Constants of protocol/include/soundpower/protocol.h; the two must stay in sync. */
 object Protocol {
     const val VERSION_MAJOR = 1
-    const val VERSION_MINOR = 1
+    const val VERSION_MINOR = 2
 
     const val EFFECT_NAME = "SoundPower"
     val EFFECT_TYPE_UUID: UUID = UUID.fromString("69dc09f7-12a9-471d-89a1-603608c452c9")
@@ -85,6 +85,9 @@ object Capability {
 
     /** The effect routes bands by [Band.channel]. */
     const val BAND_CHANNEL = 1 shl 13
+
+    /** The effect understands [MasterParams.FLAG_DIRECT_VOLUME] (since 1.2). */
+    const val DIRECT_VOLUME = 1 shl 14
 }
 
 /** A payload that does not follow docs/protocol.md. */
