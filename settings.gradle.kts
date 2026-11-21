@@ -34,5 +34,6 @@ include(
     ":android-core:model",
     ":android-core:root",
     ":android-core:effect",
+    ":android-core:rootless",
     ":android-core:data",
 )
