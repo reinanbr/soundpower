@@ -44,6 +44,39 @@
         "SP_SANITIZE": "address,undefined",
         "SP_BUILD_FUZZERS": "ON"
       }
+    },
+    {
+      "name": "android-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_BUILD_TYPE": "Release",
+        "ANDROID_PLATFORM": "android-28",
+        "ANDROID_STL": "c++_static",
+        "SP_BUILD_TESTS": "ON",
+        "SP_BUILD_TOOLS": "ON"
+      }
+    },
+    {
+      "name": "android-arm64",
+      "displayName": "Android arm64-v8a (NDK r28; ctest runs on the device over adb)",
+      "inherits": "android-base",
+      "cacheVariables": {
+        "ANDROID_ABI": "arm64-v8a",
+        "CMAKE_CROSSCOMPILING_EMULATOR": "${sourceDir}/scripts/adb-exec.sh;arm64-v8a"
+      }
+    },
+    {
+      "name": "android-armv7",
+      "displayName": "Android armeabi-v7a (NDK r28; ctest runs on the device over adb)",
+      "inherits": "android-base",
+      "cacheVariables": {
+        "ANDROID_ABI": "armeabi-v7a",
+        "CMAKE_CROSSCOMPILING_EMULATOR": "${sourceDir}/scripts/adb-exec.sh;armeabi-v7a"
+      }
     }
   ],
   "buildPresets": [
@@ -51,7 +84,9 @@
     { "name": "host-release", "configurePreset": "host-release" },
     { "name": "host-asan", "configurePreset": "host-asan" },
     { "name": "host-tsan", "configurePreset": "host-tsan" },
-    { "name": "host-fuzz", "configurePreset": "host-fuzz" }
+    { "name": "host-fuzz", "configurePreset": "host-fuzz" },
+    { "name": "android-arm64", "configurePreset": "android-arm64" },
+    { "name": "android-armv7", "configurePreset": "android-armv7" }
   ],
   "testPresets": [
     {
@@ -64,6 +99,8 @@
     { "name": "host-release", "inherits": "test-base", "configurePreset": "host-release" },
     { "name": "host-asan", "inherits": "test-base", "configurePreset": "host-asan" },
     { "name": "host-tsan", "inherits": "test-base", "configurePreset": "host-tsan" },
-    { "name": "host-fuzz", "inherits": "test-base", "configurePreset": "host-fuzz" }
+    { "name": "host-fuzz", "inherits": "test-base", "configurePreset": "host-fuzz" },
+    { "name": "android-arm64", "inherits": "test-base", "configurePreset": "android-arm64" },
+    { "name": "android-armv7", "inherits": "test-base", "configurePreset": "android-armv7" }
   ]
 }
