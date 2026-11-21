@@ -2,7 +2,7 @@ add_executable(sp-cli main.cpp)
 target_link_libraries(sp-cli PRIVATE sp_dsp_core sp_bench_lib sp_dr_wav)
 sp_set_warnings(sp-cli)
 
-if(SP_BUILD_TESTS)
+if(SP_BUILD_TESTS AND NOT CMAKE_CROSSCOMPILING)
     # End-to-end smoke test: generate a hot sweep, process it, check the response command.
     set(_out "${CMAKE_CURRENT_BINARY_DIR}/smoke")
     add_test(NAME sp_cli_gen

@@ -31,6 +31,7 @@ endif()
 
 if(SP_BUILD_TESTS)
     enable_testing()
+    include(SoundPowerTesting)
 endif()
 
 add_subdirectory(protocol)
