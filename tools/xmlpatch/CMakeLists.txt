@@ -11,3 +11,7 @@ if(ANDROID)
     # Runs inside the Magisk installer, possibly from recovery: depend on nothing on the device.
     target_link_options(sp-xmlpatch PRIVATE -static)
 endif()
+
+if(SP_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()

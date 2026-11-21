@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic fixture: output of an older SoundPower version, with entries this version no
+     longer writes (another path and UUID, an alarm stream, a device effect). -->
+<audio_effects_conf version="2.0" xmlns="http://schemas.android.com/audio/audio_effects_conf/v2_0">
+    <libraries>
+        <library name="bundle" path="libbundlewrapper.so"/>
+        <library name="soundpower" path="libsoundpower_old.so"/>
+    </libraries>
+    <effects>
+        <effect name="equalizer" library="bundle" uuid="8e81973e-0bec-47b0-b898-d190f9ebdacc"/>
+        <effect name="soundpower" library="soundpower" uuid="6b4cb242-4a23-4596-a217-beaddbc496cb"/>
+    </effects>
+    <postprocess>
+        <stream type="music">
+            <apply effect="equalizer"/>
+            <apply effect="soundpower"/>
+        </stream>
+        <stream type="alarm">
+            <apply effect="soundpower"/>
+        </stream>
+    </postprocess>
+    <deviceEffects>
+        <devicePort type="AUDIO_DEVICE_OUT_SPEAKER" address="">
+            <apply effect="soundpower"/>
+        </devicePort>
+    </deviceEffects>
+</audio_effects_conf>

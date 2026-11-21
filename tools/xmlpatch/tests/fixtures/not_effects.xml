@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<audioPolicyConfiguration version="7.0">
+    <globalConfiguration speaker_drc_enabled="true"/>
+</audioPolicyConfiguration>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--- Synthetic test fixture for sp-xmlpatch, modelled on the layout of a     -->
+<!--- Qualcomm vendor effects file: a long header comment, proxy effects with   -->
+<!--- software and hardware implementations, and a music postprocess stream.   -->
+<audio_effects_conf version="2.0" xmlns="http://schemas.android.com/audio/audio_effects_conf/v2_0">
+    <libraries>
+        <library name="bundle" path="libbundlewrapper.so"/>
+        <library name="reverb" path="libreverbwrapper.so"/>
+        <library name="offload_bundle" path="liboffloadbundle.so"/>
+        <library name="proxy" path="libeffectproxy.so"/>
+        <library name="helper" path="libhelper.so"/>
+        <library name="soundpower" path="libsoundpower.so"/>
+    </libraries>
+    <effects>
+        <effectProxy name="bassboost" library="proxy" uuid="6513270e-269e-4d37-b2a7-4de452e6b438">
+            <libsw library="bundle" uuid="d23f0824-128b-4f33-8c5c-7fd0a6a3a450"/>
+            <libhw library="offload_bundle" uuid="9531985d-5d9d-49f8-9818-e811892f902b"/>
+        </effectProxy>
+        <effect name="reverb_env_aux" library="reverb" uuid="36f675cc-81e7-4ef5-a8e2-5d940ed90475"/>
+        <effect name="music_helper" library="helper" uuid="6b0d549b-6f03-475a-9600-a35a099950d8"/>
+        <effect name="soundpower" library="soundpower" uuid="23e79ffb-ab65-4cd7-a768-b493ded3fabe"/>
+    </effects>
+    <postprocess>
+        <stream type="music">
+            <apply effect="music_helper"/>
+            <apply effect="soundpower"/>
+        </stream>
+    </postprocess>
+</audio_effects_conf>

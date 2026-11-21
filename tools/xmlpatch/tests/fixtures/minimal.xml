@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<audio_effects_conf version="2.0" xmlns="http://schemas.android.com/audio/audio_effects_conf/v2_0">
+    <libraries>
+        <library name="bundle" path="libbundlewrapper.so"/>
+    </libraries>
+    <effects>
+        <effect name="equalizer" library="bundle" uuid="0cb1e29c-658c-4a14-95e6-0af593bd04cf"/>
+    </effects>
+</audio_effects_conf>

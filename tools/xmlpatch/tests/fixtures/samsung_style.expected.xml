@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<audio_effects_conf version="2.0" xmlns="http://schemas.android.com/audio/audio_effects_conf/v2_0">
+    <libraries>
+        <!-- Synthetic fixture: comments inside sections, like some vendor files -->
+        <library name="proxy" path="libeffectproxy.so"/>
+        <!-- Hardware implementation library -->
+        <library name="offload" path="libvendoroffload.so"/>
+        <library name="spatial" path="libvendorspatial.so"/>
+        <library name="soundpower" path="libsoundpower.so"/>
+    </libraries>
+    <effects>
+        <!-- Spatial audio with an offloaded variant -->
+        <effectProxy name="spatial3d" library="proxy" uuid="8d116ece-1738-47d9-bd9c-172411e20b8f">
+            <libsw library="spatial" uuid="90c192cf-d3ac-44af-8f21-ddb66cad4a26"/>
+            <libhw library="offload" uuid="a170b338-3926-4059-b28c-105d1fb17c23"/>
+        </effectProxy>
+        <effect name="aec" library="spatial" uuid="0fd630f1-f29d-4da9-953f-48f1a09f76b5"/>
+        <effect name="soundpower" library="soundpower" uuid="23e79ffb-ab65-4cd7-a768-b493ded3fabe"/>
+    </effects>
+    <preprocess>
+        <stream type="voice_communication">
+            <apply effect="aec"/>
+        </stream>
+        <stream type="vendor_voice_communication">
+            <apply effect="aec"/>
+        </stream>
+    </preprocess>
+    <postprocess>
+        <stream type="music">
+            <apply effect="spatial3d"/>
+            <apply effect="soundpower"/>
+        </stream>
+        <stream type="ring">
+            <apply effect="spatial3d"/>
+        </stream>
+        <stream type="alarm">
+            <apply effect="spatial3d"/>
+        </stream>
+    </postprocess>
+</audio_effects_conf>

@@ -1,0 +1,17 @@
+# The fixtures are compiled into the test (as raw string literals), so it also runs on a device.
+file(GLOB _sp_fixtures CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/*.xml")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_sp_fixtures})
+set(_sp_fixtures_tmp "${CMAKE_CURRENT_BINARY_DIR}/fixtures.inc.tmp")
+file(WRITE "${_sp_fixtures_tmp}" "")
+foreach(path IN LISTS _sp_fixtures)
+    get_filename_component(name "${path}" NAME)
+    file(READ "${path}" content)
+    file(APPEND "${_sp_fixtures_tmp}" "{\"${name}\", R\"sp_fixture(${content})sp_fixture\"},\n")
+endforeach()
+configure_file("${_sp_fixtures_tmp}" "${CMAKE_CURRENT_BINARY_DIR}/fixtures.inc" COPYONLY)
+
+add_executable(sp_xmlpatch_tests test_effects_xml.cpp)
+target_include_directories(sp_xmlpatch_tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(sp_xmlpatch_tests PRIVATE sp_xmlpatch_core sp_protocol GTest::gtest_main)
+sp_set_warnings(sp_xmlpatch_tests)
+sp_add_gtest(sp_xmlpatch_tests)
