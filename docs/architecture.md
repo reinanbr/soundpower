@@ -63,10 +63,26 @@ The library keeps a process-wide **GlobalState**:
 
 ## Processing chain
 
-The order is fixed. The bold stages exist in phase 2; the rest arrive in phase 6.
+The order is fixed. The bold stages exist; the rest arrive in phase 11 (see the
+[roadmap](roadmap.md)).
 
-**input → preamp → parametric EQ (≤32 bands)** → convolver → bass enhancement → loudness compensation →
-multiband compressor → M/S stereo width → crossfeed → **lookahead limiter (always on) → output**
+**input → preamp → parametric EQ (≤32 bands, each on all channels, left, right, mid or side) → bass
+and treble shelves → balance, width and mono → compressor → lookahead limiter (switchable) →
+output**, later with convolution, bass enhancement, loudness compensation, a multiband compressor
+and crossfeed in between.
+
+- **Band channels.** A band filters all channels, the left or the right one, or the mid
+  ((L+R)/2) or side ((L−R)/2) signal. Bands run in order; at the first mid or side band the first
+  two channels are converted to mid/side in place, and back at the next band that is not, so a run
+  of mid/side bands converts once. A mid band keeps its filter state in channel 0, a side band in
+  channel 1. Mono streams apply only "all" and "mid" bands; on more than two channels, routed bands
+  use the first two. When banks are handed over, the history is walked through the old bank's
+  chain by route, so a new or re-routed band starts as a pass-through of what enters it.
+- **Auto-preamp** takes, at each frequency, all + max(left, right) + max(mid, side), each term the
+  dB sum of the bands on that route: exact with only left/right or only mid/side bands, a close
+  estimate when both are combined (mid/side gains mix into both channels).
+- **The limiter** can be switched off (it then passes audio through but keeps its delay, so
+  switching never shifts the timing). With it off, peaks above 0 dBFS clip in the mixer.
 
 - **A/B bypass** crossfades (~20 ms) between the processed signal and a **latency-aligned dry path**. The
   dry signal is delayed by the limiter lookahead, so the crossfade never comb-filters.
@@ -180,8 +196,8 @@ Gradle modules; the Gradle root is the repository root.
 | Module | Kind | Contents |
 |---|---|---|
 | `android-core:protocol` | JVM | Kotlin mirror of `protocol.h`: payload codecs and the `state.bin` format. Its tests read `protocol/vectors/*.hex` and must produce the same bytes as the C++ side. |
-| `android-core:model` | JVM | `EqSettings` (what the app stores and sends) and the 10-band graphic layout (`GraphicEq`), which is only a set of parametric bands. |
-| `android-core:data` | JVM | DataStore of `EqSettings`. The file holds exactly the bytes of `state.bin`. |
+| `android-core:model` | JVM | `AudioSettings` (what the app stores: graphic layouts and gains, parametric bands with type, channel, colour and lock, tone, stereo and dynamics, as JSON), `EqSettings` (the protocol payloads derived from it, minus what the connected effect's capabilities do not list), and `ResponseCurve`, which computes the curve per channel and auto-preamp exactly like the C++ core (checked against `sp-cli response` output). |
+| `android-core:data` | JVM | DataStore of `AudioSettings` as JSON, with a one-time import of the first version's store. |
 | `android-core:root` | Android | `RootShell` (libsu) and `ModuleManager`: Magisk version, module state, `magisk --install-module`, reboot, the state-file write, `dumpsys` parsing. Its tests run the shell scripts in the host's `sh` against a temporary tree. |
 | `android-core:effect` | Android | `EffectController` and its `AudioEffect` transport (HiddenApiBypass). |
 | `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, and `AppContainer` (dependency injection by hand). |
@@ -203,6 +219,22 @@ cache, then the root shell copies that file to `.state.bin.new` in the data dire
 and gives the file a new inode, so the library reloads it at the next instance. `cmp` skips
 identical writes. At start the app writes `state.bin` once, so a fresh install gets the app's
 settings from the next boot on.
+
+**Pages.** The main screen has three pages in a navigation bar. *Equalizer*: the on/off switch,
+reset (with undo), graphic or parametric mode, quick switches for the limiter and auto-preamp, a
+preamp fader beside the bands, and bass and treble knobs. In graphic mode a response strip sits
+above the band faders; when the bands scroll it frames the ones in view, and tapping or dragging it
+scrolls them. In parametric mode the curve shows a marker per band in the band's colour (drag to
+move, long-press to type), a dashed curve for each channel with bands of its own, and a card per
+band with type, channel, colour, lock and knobs for frequency, gain and Q. *Tone and dynamics*:
+knobs for bass and treble with their frequencies, balance and width (plus mono), the compressor
+and the limiter. *Menu*: band configuration, reset, setup and status, theme, version.
+
+**Motion.** A control under the finger follows it exactly; a value that changes on its own (reset,
+typed value, mode switch) springs to it. Dragged values stick briefly at their centre with a tick,
+double tap resets one, long press types it. The curve morphs between states and rises from flat
+when shown; pages and tools slide in from the side they are reached from, and the tool screen
+follows a predictive back gesture. The theme uses Material 3's expressive motion scheme.
 
 **Setup.** `SetupRepository.check()` asks for root, reads `magisk -v` and `-V`, the module state
 (`/data/adb/modules/soundpower`, `modules_update/soundpower`, and Magisk's `disable`, `remove` and

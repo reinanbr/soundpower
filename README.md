@@ -5,8 +5,11 @@ An open source, system-wide audio equalizer and processor for rooted Android dev
 SoundPower is a native audio effect, loaded by the device's audio HAL, that processes the output of
 every music app. It is installed through a Magisk module and controlled by a Kotlin app.
 
-> **Status:** early development. The DSP core (phase 2), the Android effect library (phase 3),
-> the Magisk module (phase 4) and a minimal app (phase 5: setup and a 10-band EQ) are complete.
+> **Status:** early development. The DSP core, the Android effect library, the Magisk module and
+> the app are in place: graphic (5–32 bands) and parametric (up to 32 bands, each on both
+> channels, left, right, mid or side) equalizers, bass and treble, balance, width and mono, a
+> compressor and a limiter. Presets, per-device profiles and more effects follow; see the
+> [roadmap](docs/roadmap.md).
 > Once installed, the effect runs on music streams that go through the audio mixer (offloaded and
 > direct outputs bypass software effects; see [risks](docs/risks.md)), and the app changes it
 > live.
@@ -116,12 +119,15 @@ $cli gen sweep sweep.wav --seconds 5 --amp 0.9          # test signal
 $cli process sweep.wav out.wav \
      --band lowshelf:80:6:0.7 --band peak:3000:-4:2.0    # EQ + limiter
 $cli response --band peak:1000:6:1.0 --fs 48000         # EQ curve as CSV
+$cli response --band peak:250:4:1:left \
+     --band highshelf:6000:3:0.7:side                   # curve per channel
 $cli bench                                              # CPU cost per block
 ```
 
-Band types are `peak`, `lowshelf`, `highshelf`, `lowpass`, `highpass`, `notch` and `bandpass`.
-Run `sp-cli --help` for every option (preamp, auto-preamp, limiter ceiling/lookahead/release,
-bypass, output format).
+Band types are `peak`, `lowshelf`, `highshelf`, `lowpass`, `highpass`, `notch` and `bandpass`; an
+optional fifth field routes a band to `left`, `right`, `mid` or `side` (default `all`). Run
+`sp-cli --help` for every option (preamp, auto-preamp, limiter, tone, balance, width, mono,
+compressor, bypass, output format).
 
 ## License
 
