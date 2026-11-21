@@ -8,7 +8,14 @@ are compatible with GPL-3.0.
 | dr_wav (`dr_wav/dr_wav.h`) | 0.14.6, commit `35b5c392cc15456736c440a68dbe073178bbffe0` | https://github.com/mackron/dr_libs | Public domain (Unlicense) or MIT-0 | `sp-cli`; IR loading in phase 6 |
 | AOSP audio effect headers (`aosp-headers/include`) | tag `android-12.1.0_r27` | https://android.googlesource.com (`hardware/libhardware`, `system/media`, `system/core`) | Apache-2.0 (see `aosp-headers/NOTICE`) | `effect-lib` (the Android ABI it implements) |
 | tinyxml2 (`tinyxml2/tinyxml2.{h,cpp}`) | 11.0.0, commit `9148bdf719e997d1f474be6bcc7943881046dba1` | https://github.com/leethomason/tinyxml2 | zlib (`tinyxml2/LICENSE`) | `sp-xmlpatch` (Magisk module installer) |
+| AutoEQ results (data only, converted) | commit `7ae0f56d53074872b028649617a22bbb4232feb7` (2025-07-20) | https://github.com/jaakkopasanen/AutoEq | MIT (`autoeq/LICENSE`) | the app's bundled AutoEQ database, `app/src/main/assets/autoeq.tsv`, written by `tools/autoeq/build_db.py` from `results/**/*ParametricEQ.txt` |
 | GoogleTest | 1.17.0, fetched at configure time, SHA-256 `65fab701d9829d38cb77c14acdc431d2108bfdbf8979e40eb8ae567edf10b27c` | https://github.com/google/googletest | BSD-3-Clause | tests only, not vendored |
+
+SHA-256 of the AutoEQ files: `autoeq/LICENSE` `a6e96e96a51b5bd7df0b926c325f7cef267064bc4b3c013a61a7565521a6a77a`,
+`app/src/main/assets/autoeq.tsv` `af2ff117878f264d66a5ebfe23ead740a55671c0dacc90598ef842e94f0c0925`
+(8850 results, 6032 of them AutoEQ's recommended one for their headphone; one recommended link in
+upstream `results/README.md` points to a result that does not exist). 394 of the 88 500 filters
+exceed ±15 dB (up to ±20 dB); the app clamps them to its ±15 dB range.
 
 SHA-256 of `dr_wav/dr_wav.h`: `fad60f1e360d6de726efc1b9a7985610c89c551719e3f110e8b992f0e1f308cd`.
 
