@@ -1,6 +1,7 @@
 add_library(sp_dsp_core STATIC
     src/biquad.cpp
     src/format.cpp
+    src/limiter.cpp
     src/limits.cpp
     src/parametric_eq.cpp
     src/rbj.cpp)
