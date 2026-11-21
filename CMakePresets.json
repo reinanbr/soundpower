@@ -1,0 +1,55 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "host-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON" }
+    },
+    {
+      "name": "host-debug",
+      "displayName": "Host Debug",
+      "inherits": "host-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "host-release",
+      "displayName": "Host Release",
+      "inherits": "host-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "host-asan",
+      "displayName": "Host AddressSanitizer + UndefinedBehaviorSanitizer",
+      "inherits": "host-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "SP_SANITIZE": "address,undefined" }
+    },
+    {
+      "name": "host-tsan",
+      "displayName": "Host ThreadSanitizer",
+      "inherits": "host-base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo", "SP_SANITIZE": "thread" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "host-debug", "configurePreset": "host-debug" },
+    { "name": "host-release", "configurePreset": "host-release" },
+    { "name": "host-asan", "configurePreset": "host-asan" },
+    { "name": "host-tsan", "configurePreset": "host-tsan" }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "timeout": 600 }
+    },
+    { "name": "host-debug", "inherits": "test-base", "configurePreset": "host-debug" },
+    { "name": "host-release", "inherits": "test-base", "configurePreset": "host-release" },
+    { "name": "host-asan", "inherits": "test-base", "configurePreset": "host-asan" },
+    { "name": "host-tsan", "inherits": "test-base", "configurePreset": "host-tsan" }
+  ]
+}
