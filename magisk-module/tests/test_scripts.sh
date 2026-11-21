@@ -104,15 +104,17 @@ new_device() {
     echo "$d"
 }
 
-# install <device root>: runs customize.sh like Magisk's install_module does. Output in $out, the
+# install_on <device root>: runs customize.sh like Magisk's install_module does. Output in $out, the
 # set_perm calls in $perms, the exit code in $rc. Environment: ARCH, IS64BIT, API, BOOTMODE, FAKE_HAL.
-install() {
+install_on() {
     dev=$1
     mod=$work/modpath
     out=$work/install.out
     perms=$work/perms
     rm -rf "$mod" "$work/tmp" "$perms"
     mkdir -p "$mod" "$work/tmp"
+    # The variables are read by customize.sh, which shellcheck does not follow.
+    # shellcheck disable=SC2034
     (
         PATH=$stubs:$PATH
         SP_ROOT=$dev
@@ -137,6 +139,8 @@ install() {
         . "$template/customize.sh"
     ) >"$out" 2>&1
     rc=$?
+    # Assignments before a function call may outlive it (POSIX leaves it unspecified).
+    unset ARCH IS64BIT API BOOTMODE FAKE_HAL
 }
 
 perm_of() { grep "^$1 " "$perms" | tail -n 1 | cut -d' ' -f2-; }
@@ -157,7 +161,7 @@ echo x >"$dev/data/adb/modules/othermod/system/vendor/etc/audio_effects_sec.xml"
 echo x >"$dev/data/adb/modules/oldmod/system/vendor/etc/audio_effects.xml"
 touch "$dev/data/adb/modules/oldmod/disable"
 
-install "$dev"
+install_on "$dev"
 ok "samsung: install succeeds" [ "$rc" = 0 ]
 ok "samsung: reports HIDL" contains "$out" "Effects HAL: HIDL"
 for f in audio_effects.xml audio_effects_sec.xml audio/sku_x/audio_effects.xml; do
@@ -188,7 +192,7 @@ cp -R "$mod" "$work/first"
 for f in audio_effects.xml audio_effects_sec.xml audio/sku_x/audio_effects.xml; do
     cp "$work/first/system/vendor/etc/$f" "$dev/vendor/etc/$f"
 done
-install "$dev"
+install_on "$dev"
 ok "reinstall: succeeds" [ "$rc" = 0 ]
 for f in audio_effects.xml audio_effects_sec.xml audio/sku_x/audio_effects.xml; do
     ok "reinstall: /vendor/etc/$f unchanged" same "$work/first/system/vendor/etc/$f" "$mod/system/vendor/etc/$f"
@@ -198,7 +202,7 @@ done
 dev=$(new_device arm32)
 cp "$fixtures/minimal.xml" "$dev/vendor/etc/audio_effects.xml"
 mkdir -p "$dev/vendor/lib"
-ARCH=arm IS64BIT=false install "$dev"
+ARCH=arm IS64BIT=false install_on "$dev"
 ok "arm: succeeds" [ "$rc" = 0 ]
 ok "arm: 32-bit library" [ -f "$mod/system/vendor/lib/soundfx/libsoundpower.so" ]
 ok "arm: no 64-bit library" absent "$mod/system/vendor/lib64"
@@ -206,7 +210,7 @@ ok "arm: no 64-bit library" absent "$mod/system/vendor/lib64"
 dev=$(new_device only64)
 cp "$fixtures/minimal.xml" "$dev/vendor/etc/audio_effects.xml"
 mkdir -p "$dev/vendor/lib64"
-install "$dev"
+install_on "$dev"
 ok "64-bit only: succeeds" [ "$rc" = 0 ]
 ok "64-bit only: no 32-bit library" absent "$mod/system/vendor/lib"
 ok "64-bit only: 64-bit library" [ -f "$mod/system/vendor/lib64/soundfx/libsoundpower.so" ]
@@ -214,35 +218,35 @@ ok "64-bit only: 64-bit library" [ -f "$mod/system/vendor/lib64/soundfx/libsound
 dev=$(new_device sysonly)
 cp "$fixtures/empty_root.xml" "$dev/system/etc/audio_effects.xml"
 mkdir -p "$dev/vendor/lib64"
-install "$dev"
+install_on "$dev"
 ok "system config: succeeds" [ "$rc" = 0 ]
 ok "system config: placed under system/etc" check_patched "$mod/system/etc/audio_effects.xml"
 ok "system config: system context" [ "$(perm_of "$mod/system/etc/audio_effects.xml")" = "0:0 0644 u:object_r:system_file:s0" ]
 
-BOOTMODE=false FAKE_HAL=none install "$dev"
+BOOTMODE=false FAKE_HAL=none install_on "$dev"
 ok "recovery: succeeds" [ "$rc" = 0 ]
 ok "recovery: says the HAL is not checked" contains "$out" "Installing from recovery"
 
 # ---- 4. Refusals -------------------------------------------------------------------------------
-FAKE_HAL=aidl install "$dev"
+FAKE_HAL=aidl install_on "$dev"
 ok "aidl: refused" refused "AIDL effects HAL"
-FAKE_HAL=none install "$dev"
+FAKE_HAL=none install_on "$dev"
 ok "unknown HAL: continues" succeeded "Could not identify the effects HAL"
-ARCH=x64 install "$dev"
+ARCH=x64 install_on "$dev"
 ok "x86-64: refused" refused "Unsupported CPU architecture"
-API=27 install "$dev"
+API=27 install_on "$dev"
 ok "API 27: refused" refused "Android 9"
 
 dev=$(new_device confonly)
 echo "legacy" >"$dev/vendor/etc/audio_effects.conf"
 mkdir -p "$dev/vendor/lib64"
-install "$dev"
+install_on "$dev"
 ok "conf only: refused" refused "No audio effects XML"
 
 dev=$(new_device broken)
 cp "$fixtures/malformed.xml" "$dev/vendor/etc/audio_effects.xml"
 mkdir -p "$dev/vendor/lib64"
-install "$dev"
+install_on "$dev"
 ok "malformed only: refused" refused "No audio effects XML"
 ok "malformed only: explains the parse error" contains "$out" "Skipping /vendor/etc/audio_effects.xml"
 

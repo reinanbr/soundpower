@@ -1,4 +1,4 @@
-# shellcheck shell=sh
+# shellcheck shell=sh disable=SC2034 # the variables are used by the scripts that source this
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # Shared by the SoundPower module scripts. Every device path is prefixed with $SP_ROOT, which is
