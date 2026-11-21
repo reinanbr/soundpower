@@ -7,9 +7,19 @@ are compatible with GPL-3.0.
 |---|---|---|---|---|
 | dr_wav (`dr_wav/dr_wav.h`) | 0.14.6, commit `35b5c392cc15456736c440a68dbe073178bbffe0` | https://github.com/mackron/dr_libs | Public domain (Unlicense) or MIT-0 | `sp-cli`; IR loading in phase 6 |
 | AOSP audio effect headers (`aosp-headers/include`) | tag `android-12.1.0_r27` | https://android.googlesource.com (`hardware/libhardware`, `system/media`, `system/core`) | Apache-2.0 (see `aosp-headers/NOTICE`) | `effect-lib` (the Android ABI it implements) |
+| tinyxml2 (`tinyxml2/tinyxml2.{h,cpp}`) | 11.0.0, commit `9148bdf719e997d1f474be6bcc7943881046dba1` | https://github.com/leethomason/tinyxml2 | zlib (`tinyxml2/LICENSE`) | `sp-xmlpatch` (Magisk module installer) |
 | GoogleTest | 1.17.0, fetched at configure time, SHA-256 `65fab701d9829d38cb77c14acdc431d2108bfdbf8979e40eb8ae567edf10b27c` | https://github.com/google/googletest | BSD-3-Clause | tests only, not vendored |
 
 SHA-256 of `dr_wav/dr_wav.h`: `fad60f1e360d6de726efc1b9a7985610c89c551719e3f110e8b992f0e1f308cd`.
+
+SHA-256 of tinyxml2 (from the `11.0.0` release tarball, whose own SHA-256 is
+`5556deb5081fb246ee92afae73efd943c889cef0cafea92b0b82422d6a18f289`):
+
+```
+0f3c6e5a91b6d65caca3cc7239926455f21e488cff80ac3d27c74f5262fd2602  tinyxml2/tinyxml2.h
+95f64e4cb06c9e147d5b12e8860c88898944858dfbc38fed92ebf918f1436554  tinyxml2/tinyxml2.cpp
+9332252e9b9e46db8285d4a3f0bf25f139bf1dca6781b956d57f2302efca6432  tinyxml2/LICENSE (LICENSE.txt upstream)
+```
 
 SHA-256 of the AOSP headers (paths relative to `aosp-headers/include`):
 

@@ -9,3 +9,8 @@ set_target_properties(sp_dr_wav PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_library(sp_aosp_headers INTERFACE)
 add_library(soundpower::aosp_headers ALIAS sp_aosp_headers)
 target_include_directories(sp_aosp_headers SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/aosp-headers/include")
+
+# tinyxml2: parses and rewrites the device's audio effects XML in sp-xmlpatch (Magisk module).
+add_library(sp_tinyxml2 STATIC tinyxml2/tinyxml2.cpp)
+add_library(soundpower::tinyxml2 ALIAS sp_tinyxml2)
+target_include_directories(sp_tinyxml2 SYSTEM PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/tinyxml2")
