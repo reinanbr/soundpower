@@ -24,6 +24,7 @@ class ModuleManagerTest {
         moduleDir = "$root/adb/modules/soundpower",
         stagedDir = "$root/adb/modules_update/soundpower",
         dataDir = "$root/vendor/soundpower",
+        procDir = "$root/proc",
     )
     private val shell = HostShell(bin)
     private val manager = ModuleManager(shell, paths)
@@ -104,6 +105,49 @@ class ModuleManagerTest {
         assertIs<ModuleManager.StateWrite.Failed>(manager.writeStateFile(byteArrayOf(1), File(root, "staging.bin")))
         assertContentEquals(byteArrayOf(9), state.readBytes())
         assertFalse(File(paths.dataDir, ".state.bin.new").exists())
+    }
+
+    private fun process(pid: Int, vararg libs: String) {
+        File("$root/proc/$pid").mkdirs()
+        File("$root/proc/$pid/maps").writeText(libs.joinToString("") { "7000-8000 r-xp 00000000 fd:00 1 /vendor/lib/soundfx/$it\n" })
+    }
+
+    private fun services(vararg pids: Pair<String, Int>) {
+        val props = pids.joinToString("\n") { (name, pid) -> "[init.svc_debug_pid.$name]: [$pid]" }
+        stub("getprop", "cat <<'EOF'\n[ro.debuggable]: [0]\n$props\n[init.svc_debug_pid.other]: [999]\nEOF")
+        stub("setprop", "echo \"setprop \$*\" >>'$log'")
+    }
+
+    @Test
+    fun restartsTheServicesThatLoadedTheEffect() = runTest {
+        prop(paths.moduleDir, "v0.3.0", 300)
+        process(1200, "libsoundpower.so", "libother.so")
+        process(1300, "libother.so")
+        process(1400, "libsoundpower.so")
+        services("vendor.audio-hal-2-0" to 1200, "audioserver" to 1300, "vendor.audio-hal-x" to 14000, "media.effects" to 1400)
+        assertEquals(ModuleManager.AudioRestart.Restarted(listOf("vendor.audio-hal-2-0", "media.effects")), manager.restartAudio())
+        assertEquals("setprop ctl.restart vendor.audio-hal-2-0\nsetprop ctl.restart media.effects\n", log.readText())
+        // The boot watchdog skips a restart that was asked for.
+        assertTrue(File(paths.moduleDir, "restart-requested").exists())
+    }
+
+    @Test
+    fun aRestartWithoutTheEffectLoadedDoesNothing() = runTest {
+        process(1300, "libother.so")
+        services("audioserver" to 1300)
+        assertEquals(ModuleManager.AudioRestart.NotLoaded, manager.restartAudio())
+        assertFalse(log.exists())
+        assertFalse(File(paths.moduleDir, "restart-requested").exists())
+    }
+
+    @Test
+    fun aProcessThatIsNoServiceIsLeftAlone() = runTest {
+        process(1500, "libsoundpower.so")
+        services("audioserver" to 1300)
+        val r = manager.restartAudio()
+        assertIs<ModuleManager.AudioRestart.Failed>(r)
+        assertTrue("process 1500" in r.message, r.message)
+        assertFalse(log.exists())
     }
 
     /** [RootShell] on a fresh host `sh` per script, with [bin] first on PATH. */

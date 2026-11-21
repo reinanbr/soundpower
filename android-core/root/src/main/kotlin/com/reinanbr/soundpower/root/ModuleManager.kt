@@ -18,6 +18,7 @@ class ModuleManager(
         val moduleDir: String = "/data/adb/modules/$MODULE_ID",
         val stagedDir: String = "/data/adb/modules_update/$MODULE_ID",
         val dataDir: String = Protocol.DATA_DIR,
+        val procDir: String = "/proc",
     )
 
     suspend fun requestRoot(): Boolean = shell.requestRoot()
@@ -63,6 +64,32 @@ class ModuleManager(
         return if (r.code == ShellResult.NO_ROOT) null else EffectDump.parse(r.out)
     }
 
+    /**
+     * Restarts the init services whose processes have the effect library loaded (the audio HAL;
+     * audioserver follows it), so that they load it again. Playback stops for a moment. The
+     * module's boot watchdog is told first, so that the restart does not count as a crash.
+     */
+    suspend fun restartAudio(): AudioRestart {
+        val r = shell.run(restartAudioScript())
+        val restarted = r.out.mapNotNull { it.trim().removePrefix("restarted ").takeIf { s -> s != it.trim() } }
+        return when {
+            r.code == ShellResult.NO_ROOT -> AudioRestart.Failed("no root")
+            r.isSuccess && restarted.isNotEmpty() -> AudioRestart.Restarted(restarted)
+            r.code == RESTART_NOT_LOADED -> AudioRestart.NotLoaded
+            else -> AudioRestart.Failed((r.out + r.err).joinToString("\n").ifBlank { "exit code ${r.code}" })
+        }
+    }
+
+    sealed interface AudioRestart {
+        /** `ctl.restart` was sent for these init services. */
+        data class Restarted(val services: List<String>) : AudioRestart
+
+        /** No process has the library loaded: the module is not active. */
+        data object NotLoaded : AudioRestart
+
+        data class Failed(val message: String) : AudioRestart
+    }
+
     sealed interface StateWrite {
         data object Written : StateWrite
         data object Unchanged : StateWrite
@@ -96,8 +123,39 @@ class ModuleManager(
         """.trimIndent()
     }
 
+    internal fun restartAudioScript(): String {
+        val proc = shQuote(paths.procDir)
+        val requested = shQuote(paths.moduleDir + "/restart-requested")
+        // init publishes each running service's pid as init.svc_debug_pid.<name>. A process that
+        // is not an init service is left alone: killing it blindly could take down anything.
+        return """
+            (
+              found=; failed=
+              for maps in $proc/[0-9]*/maps; do
+                grep -qF $LIBRARY "${'$'}maps" 2>/dev/null || continue
+                pid=${'$'}{maps%/maps}; pid=${'$'}{pid##*/}
+                found=1
+                svc=${'$'}(getprop | sed -n "s/^\[init\.svc_debug_pid\.\(.*\)\]: \[${'$'}pid\]${'$'}/\1/p" | head -n 1)
+                if [ -n "${'$'}svc" ]; then
+                  touch $requested
+                  setprop ctl.restart "${'$'}svc" && echo "restarted ${'$'}svc" || failed=1
+                else
+                  echo "process ${'$'}pid has the effect loaded but is not an init service"; failed=1
+                fi
+              done
+              [ -n "${'$'}found" ] || { echo "no process has the effect loaded"; exit $RESTART_NOT_LOADED; }
+              [ -z "${'$'}failed" ] || exit 5
+            )
+        """.trimIndent()
+    }
+
     companion object {
         const val MODULE_ID = "soundpower"
+
+        /** The effect library's file name, as the audio HAL maps it. */
+        const val LIBRARY = "libsoundpower.so"
+
+        private const val RESTART_NOT_LOADED = 3
 
         /** The SELinux type the module's sepolicy.rule gives the data directory. */
         const val DATA_CONTEXT = "u:object_r:soundpower_data_file:s0"

@@ -25,8 +25,10 @@ data class EqSettings(
     val tone: ToneParams = ToneParams(),
     val stereo: StereoParams = StereoParams(),
     val compressor: CompressorParams = CompressorParams(),
+    /** Direct volume control ([MasterParams.directVolume]): an app-wide choice, not part of a preset. */
+    val directVolume: Boolean = false,
 ) {
-    val master: MasterParams get() = MasterParams(bypass, autoPreamp, preampDb, limiterEnabled)
+    val master: MasterParams get() = MasterParams(bypass, autoPreamp, preampDb, limiterEnabled, directVolume)
     val eqState: EqState get() = EqState(bands)
 
     /**
@@ -76,7 +78,7 @@ data class EqSettings(
                     ParamId.MASTER -> MasterParams.decode(e.payload).let {
                         s.copy(
                             bypass = it.bypass, autoPreamp = it.autoPreamp, preampDb = it.preampDb,
-                            limiterEnabled = it.limiterEnabled,
+                            limiterEnabled = it.limiterEnabled, directVolume = it.directVolume,
                         )
                     }
                     ParamId.EQ_STATE -> s.copy(bands = EqState.decode(e.payload).bands)

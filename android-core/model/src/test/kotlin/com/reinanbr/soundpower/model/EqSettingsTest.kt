@@ -56,6 +56,14 @@ class EqSettingsTest {
     }
 
     @Test
+    fun directVolumeGoesIntoMaster() {
+        val s = EqSettings(autoPreamp = true, preampDb = -2.5f, directVolume = true)
+        assertContentEquals(vector("master_direct_volume"), s.master.encode())
+        assertTrue(EqSettings.fromStateFile(s.toStateFile()).directVolume)
+        assertFalse(EqSettings.DEFAULT.master.directVolume)
+    }
+
+    @Test
     fun skipsUnknownEntries() {
         assertEquals(
             EqSettings.fromStateFile(vector("state_file_example")),
