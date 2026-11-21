@@ -20,6 +20,7 @@
 #include "../instance.h"
 #include "../log.h"
 #include "soundpower/protocol.h"
+#include "sp/dsp/math.h"
 
 namespace sp::fx::android {
 
@@ -37,17 +38,25 @@ namespace {
 constexpr std::uint16_t kCpuLoad = 0;
 constexpr std::uint16_t kMemoryUsageKb = 1;
 
-constexpr effect_descriptor_t kDescriptor = {
-    .type = SP_EFFECT_TYPE_UUID_INIT,
-    .uuid = SP_EFFECT_IMPL_UUID_INIT,
-    .apiVersion = EFFECT_CONTROL_API_VERSION,
-    .flags = EFFECT_FLAG_TYPE_INSERT | EFFECT_FLAG_INSERT_LAST | EFFECT_FLAG_VOLUME_IND |
-             EFFECT_FLAG_DEVICE_IND,
-    .cpuLoad = kCpuLoad,
-    .memoryUsage = kMemoryUsageKb,
-    .name = SP_EFFECT_NAME,
-    .implementor = SP_EFFECT_IMPLEMENTOR,
-};
+constexpr effect_descriptor_t makeDescriptor(std::uint32_t volumeFlag) {
+    return {
+        .type = SP_EFFECT_TYPE_UUID_INIT,
+        .uuid = SP_EFFECT_IMPL_UUID_INIT,
+        .apiVersion = EFFECT_CONTROL_API_VERSION,
+        .flags = EFFECT_FLAG_TYPE_INSERT | EFFECT_FLAG_INSERT_LAST | volumeFlag |
+                 EFFECT_FLAG_DEVICE_IND,
+        .cpuLoad = kCpuLoad,
+        .memoryUsage = kMemoryUsageKb,
+        .name = SP_EFFECT_NAME,
+        .implementor = SP_EFFECT_IMPLEMENTOR,
+    };
+}
+
+// Direct volume control off: AudioFlinger applies the stream volume before the chain and tells
+// the effect (SET_VOLUME without a reply). On: the effect is the chain's volume controller, the
+// mixer feeds it at full scale and the chain applies the volume before its limiter.
+constexpr effect_descriptor_t kDescriptor = makeDescriptor(EFFECT_FLAG_VOLUME_IND);
+constexpr effect_descriptor_t kDescriptorVolumeCtrl = makeDescriptor(EFFECT_FLAG_VOLUME_CTRL);
 
 bool sameUuid(const effect_uuid_t& a, const effect_uuid_t& b) noexcept {
     return a.timeLow == b.timeLow && a.timeMid == b.timeMid &&
@@ -258,20 +267,29 @@ std::int32_t getParam(ModuleState& s, std::uint32_t cmdSize, const void* cmd,
     return 0;
 }
 
+/// dB for the dump line: silence prints as -999.0 instead of -inf, so parsers see a number.
+double dumpDb(double db) noexcept { return db > -999.0 ? db : -999.0; }
+
 std::int32_t dump(ModuleState& s, std::uint32_t cmdSize, const void* cmd) {
     if (cmd == nullptr || cmdSize < sizeof(std::uint32_t)) return -EINVAL;
     int fd;
     std::memcpy(&fd, cmd, sizeof(fd));
     const Status st = s.global->status(*s.instance);
+    const Instance::VolumeReport v = s.instance->takeVolumeReport();
+    // Fields are only ever appended: android-core/root's EffectDump parses this line.
     dprintf(fd,
             "SoundPower %u.%u.%u (protocol %d.%d): session %d io %d, %s, %u Hz, %u ch, "
             "format 0x%x, cpu avg %.2f%% peak %.2f%%, limiter %.2f dB, %" PRIu64
-            " frames, flags 0x%x, %u instances\n",
+            " frames, flags 0x%x, %u instances, volume %.1f/%.1f dB %s (stage %.1f dB), "
+            "peak in %.1f out %.1f dBFS\n",
             unsigned{SP_VERSION_MAJOR}, unsigned{SP_VERSION_MINOR}, unsigned{SP_VERSION_PATCH},
             SP_PROTOCOL_VERSION_MAJOR, SP_PROTOCOL_VERSION_MINOR, st.sessionId,
             s.instance->ioId(), stateName(st.state), st.sampleRate, st.channels, st.format,
             static_cast<double>(st.cpuAvgPercent), static_cast<double>(st.cpuPeakPercent),
-            static_cast<double>(st.limiterGrDb), st.framesProcessed, st.flags, st.instances);
+            static_cast<double>(st.limiterGrDb), st.framesProcessed, st.flags, st.instances,
+            dumpDb(dsp::gainToDb(v.volume.left)), dumpDb(dsp::gainToDb(v.volume.right)),
+            v.volume.apply ? "applied" : "by mixer", dumpDb(v.stageGainDb), dumpDb(v.inputPeakDb),
+            dumpDb(v.outputPeakDb));
     return 0;
 }
 
@@ -318,7 +336,10 @@ std::int32_t command(effect_handle_t self, std::uint32_t cmdCode, std::uint32_t 
         }
 
         case EFFECT_CMD_SET_VOLUME: {
-            // May come from AudioFlinger's mixer thread: atomics only.
+            // May come from AudioFlinger's mixer thread: atomics only. AudioFlinger sends it
+            // when the volume or the chain's volume controller changes, and passes a reply
+            // buffer only to the controller: the last enabled effect with EFFECT_FLAG_VOLUME_CTRL
+            // in the chain. The controller answers with the volume the mixer must still apply.
             if (cmd == nullptr || cmdSize < sizeof(std::uint32_t)) return -EINVAL;
             std::uint32_t volume[2];
             std::memcpy(&volume[0], cmd, sizeof(std::uint32_t));
@@ -326,10 +347,14 @@ std::int32_t command(effect_handle_t self, std::uint32_t cmdCode, std::uint32_t 
             if (cmdSize >= 2 * sizeof(std::uint32_t)) {
                 std::memcpy(&volume[1], static_cast<const std::uint8_t*>(cmd) + 4, 4);
             }
-            s.instance->setVolume(volume[0], volume[1]);
-            // Without EFFECT_FLAG_VOLUME_CTRL the reply is normally null. If a caller asks
-            // anyway, answer "apply the full volume yourself": we applied none of it.
-            if (reply != nullptr && replySize != nullptr && *replySize >= sizeof(volume)) {
+            const bool controller =
+                reply != nullptr && replySize != nullptr && *replySize >= sizeof(volume);
+            // Only an effect that claimed volume control takes the volume over. Without the
+            // claim a reply is unexpected; answer "apply the full volume yourself".
+            const bool apply = controller && s.global->claimsVolumeControl();
+            s.instance->setStreamVolume(volume[0], volume[1], apply);
+            if (controller) {
+                if (apply) volume[0] = volume[1] = 1u << 24;  // unity: the chain applies it
                 std::memcpy(reply, volume, sizeof(volume));
                 *replySize = sizeof(volume);
             }
@@ -369,8 +394,9 @@ std::int32_t process(effect_handle_t self, audio_buffer_t* in, audio_buffer_t* o
 }
 
 std::int32_t getDescriptor(effect_handle_t self, effect_descriptor_t* descriptor) {
-    if (moduleFrom(self) == nullptr || descriptor == nullptr) return -EINVAL;
-    *descriptor = kDescriptor;
+    EffectModule* m = moduleFrom(self);
+    if (m == nullptr || descriptor == nullptr) return -EINVAL;
+    *descriptor = android::descriptor(m->state->global->claimsVolumeControl());
     return 0;
 }
 
@@ -394,13 +420,17 @@ std::int32_t libGetDescriptor(const effect_uuid_t* uuid, effect_descriptor_t* de
     if (uuid == nullptr || descriptor == nullptr || !sameUuid(*uuid, kDescriptor.uuid)) {
         return -EINVAL;
     }
-    *descriptor = kDescriptor;
+    // The effects factory calls this when it loads the library and keeps the answer: this is
+    // where direct volume control is decided for the life of the process.
+    *descriptor = android::descriptor(processState().claimsVolumeControl());
     return 0;
 }
 
 }  // namespace
 
-const effect_descriptor_t& descriptor() noexcept { return kDescriptor; }
+const effect_descriptor_t& descriptor(bool volumeControl) noexcept {
+    return volumeControl ? kDescriptorVolumeCtrl : kDescriptor;
+}
 
 std::int32_t createEffect(GlobalState& global, const effect_uuid_t* uuid, std::int32_t sessionId,
                           std::int32_t ioId, effect_handle_t* handle) {
@@ -408,6 +438,7 @@ std::int32_t createEffect(GlobalState& global, const effect_uuid_t* uuid, std::i
     if (!sameUuid(*uuid, kDescriptor.uuid)) return -ENOENT;
 
     global.reloadStateFileIfChanged();
+    (void)global.claimsVolumeControl();  // decided before the first SET_VOLUME can arrive
     Instance* instance = global.createInstance(sessionId, ioId);
     if (instance == nullptr) return -ENOMEM;
     auto* state = new (std::nothrow) ModuleState;

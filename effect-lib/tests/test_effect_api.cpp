@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -462,6 +463,175 @@ TEST_F(EffectApi, VolumeDeviceAndOffload) {
     EXPECT_EQ(e.call(EFFECT_CMD_OFFLOAD, data), -EINVAL);
 }
 
+// ---- Direct volume control ------------------------------------------------------------------
+
+/// Peak of the last `frames` stereo frames.
+double tailPeak(const std::vector<float>& y, std::size_t frames) {
+    double peak = 0.0;
+    for (std::size_t i = y.size() - frames * 2; i < y.size(); ++i) {
+        peak = std::max(peak, static_cast<double>(std::fabs(y[i])));
+    }
+    return peak;
+}
+
+class DirectVolume : public EffectApi {
+protected:
+    // MASTER: auto-preamp on, direct volume control on, preamp 0 dB. Set before the first
+    // instance exists, like a state file read when the library loads.
+    void SetUp() override {
+        const std::vector<std::uint8_t> master = {0x0a, 0, 0, 0, 0, 0, 0, 0};
+        ASSERT_EQ(global.setParam(SP_PARAM_MASTER, master), 0);
+    }
+
+    /// What AudioFlinger sends the chain's volume controller. Returns what the mixer must
+    /// still apply.
+    static std::array<std::uint32_t, 2> controllerVolume(Effect& e, std::uint32_t left,
+                                                         std::uint32_t right) {
+        std::array<std::uint32_t, 2> volume = {left, right};
+        std::array<std::uint32_t, 2> reply = {0, 0};
+        std::uint32_t replySize = sizeof(reply);
+        EXPECT_EQ((*e.h)->command(e.h, EFFECT_CMD_SET_VOLUME, 8, volume.data(), &replySize,
+                                  reply.data()),
+                  0);
+        EXPECT_EQ(replySize, sizeof(reply));
+        return reply;
+    }
+
+    /// `frames` frames of a 1 kHz sine at `amplitude`, through `e` in 480-frame buffers.
+    static std::vector<float> play(Effect& e, double amplitude, std::size_t frames = 4800) {
+        std::vector<float> in = dsp::test::sine(1000.0, 48000.0, amplitude, frames, 2);
+        std::vector<float> out(in.size());
+        for (std::size_t off = 0; off < frames; off += 480) {
+            std::vector<float> a(in.begin() + off * 2, in.begin() + (off + 480) * 2), b(a.size());
+            EXPECT_EQ(e.process(a, b, 480), 0);
+            std::copy(b.begin(), b.end(), out.begin() + off * 2);
+        }
+        return out;
+    }
+
+    static std::uint32_t statusFlags(Effect& e) {
+        std::vector<std::uint8_t> v;
+        EXPECT_EQ(e.getParam(SP_PARAM_STATUS, v), 0);
+        sp_status_t st{};
+        std::memcpy(&st, v.data(), std::min(v.size(), sizeof(st)));
+        return st.flags;
+    }
+};
+
+constexpr std::uint32_t kQuarter = 1u << 22;  // 0.25 (-12 dB) in 8.24
+constexpr std::array<std::uint32_t, 2> kUnity = {1u << 24, 1u << 24};
+
+TEST_F(DirectVolume, TheDescriptorClaimsVolumeControl) {
+    Effect e = create(30);
+    effect_descriptor_t d{};
+    ASSERT_EQ((*e.h)->get_descriptor(e.h, &d), 0);
+    EXPECT_EQ(d.flags & EFFECT_FLAG_VOLUME_MASK,
+              static_cast<std::uint32_t>(EFFECT_FLAG_VOLUME_CTRL));
+    EXPECT_EQ(std::memcmp(&d, &android::descriptor(true), sizeof(d)), 0);
+    // Only the volume flags differ from the default descriptor.
+    EXPECT_EQ(android::descriptor(true).flags & ~EFFECT_FLAG_VOLUME_MASK,
+              android::descriptor(false).flags & ~EFFECT_FLAG_VOLUME_MASK);
+}
+
+TEST_F(DirectVolume, TheControllerTakesTheVolumeOver) {
+    Effect e = createRunning(31);
+    EXPECT_EQ(controllerVolume(e, kQuarter, kQuarter), kUnity);  // the mixer applies nothing
+    const std::vector<float> out = play(e, 0.4);
+    EXPECT_NEAR(tailPeak(out, 960), 0.1, 1e-3);
+    EXPECT_LE(dsp::test::maxAbs(out), 0.1 + 1e-3);  // no full-scale start
+}
+
+TEST_F(DirectVolume, AnEffectThatIsNotTheControllerLeavesTheVolumeToTheMixer) {
+    Effect e = createRunning(32);
+    std::array<std::uint32_t, 2> volume = {kQuarter, kQuarter};
+    ASSERT_EQ((*e.h)->command(e.h, EFFECT_CMD_SET_VOLUME, 8, volume.data(), nullptr, nullptr), 0);
+    EXPECT_NEAR(tailPeak(play(e, 0.4), 960), 0.4, 1e-3);
+    EXPECT_EQ(statusFlags(e) & SP_STATUS_FLAG_VOLUME_APPLIED, 0u);
+}
+
+TEST_F(DirectVolume, DisablingKeepsTheVolumeToTheLastBuffer) {
+    // AudioFlinger treats the effect as the controller until process() returns -ENODATA, so
+    // the fade-out and that last buffer must still carry the volume.
+    Effect e = createRunning(33);
+    (void)controllerVolume(e, kQuarter, kQuarter);
+    (void)play(e, 0.4);
+    ASSERT_EQ(e.call(EFFECT_CMD_DISABLE), 0);
+    std::vector<float> in = dsp::test::sine(1000.0, 48000.0, 0.4, 480, 2);
+    std::vector<float> out(in.size());
+    int status = 0;
+    for (int i = 0; i < 10 && status == 0; ++i) {
+        status = e.process(in, out, 480);
+        EXPECT_LE(dsp::test::maxAbs(out), 0.1 + 1e-3) << "buffer " << i;
+    }
+    EXPECT_EQ(status, -ENODATA);
+}
+
+TEST_F(DirectVolume, AutoPreampHeadroomComesBackAtLowVolume) {
+    // +12 dB at 1 kHz with auto-preamp: at -12 dB volume the boost is heard in full.
+    Effect e = createRunning(34);
+    std::vector<std::uint8_t> eq(4 + 16, 0);
+    eq[0] = 1;                                  // one band
+    eq[4] = SP_BAND_PEAKING;                    // type
+    eq[5] = 1;                                  // enabled
+    const float freq = 1000.0f, gain = 12.0f, q = 1.0f;
+    std::memcpy(eq.data() + 8, &freq, 4);
+    std::memcpy(eq.data() + 12, &gain, 4);
+    std::memcpy(eq.data() + 16, &q, 4);
+    ASSERT_EQ(e.setParam(SP_PARAM_EQ_STATE, eq), 0);
+    (void)controllerVolume(e, kQuarter, kQuarter);
+    EXPECT_NEAR(tailPeak(play(e, 0.1, 9600), 960), 0.1, 2e-3);  // 0.1 · 0.25 · 4
+}
+
+TEST_F(DirectVolume, StatusReportsTheClaimAndTheAppliedVolume) {
+    Effect e = createRunning(35);
+    EXPECT_EQ(statusFlags(e) & (SP_STATUS_FLAG_VOLUME_CTRL | SP_STATUS_FLAG_VOLUME_APPLIED),
+              SP_STATUS_FLAG_VOLUME_CTRL);
+    (void)controllerVolume(e, kQuarter, kQuarter);
+    EXPECT_NE(statusFlags(e) & SP_STATUS_FLAG_VOLUME_APPLIED, 0u);
+    ASSERT_EQ(e.call(EFFECT_CMD_DISABLE), 0);
+    EXPECT_EQ(statusFlags(e) & SP_STATUS_FLAG_VOLUME_APPLIED, 0u);
+}
+
+TEST_F(DirectVolume, APassingThroughDuplicateStillAppliesTheVolume) {
+    const Effect first = createRunning(36);
+    Effect second = createRunning(36);  // duplicate of `first`: passes audio through
+    ASSERT_NE(first.h, nullptr);
+    (void)controllerVolume(second, 1u << 23, 1u << 23);  // 0.5
+    std::vector<float> in = dsp::test::sine(1000.0, 48000.0, 0.5, 960, 2);
+    std::vector<float> out(in.size());
+    ASSERT_EQ(second.process(in, out, 960), 0);
+    for (std::size_t i = 0; i < in.size(); ++i) ASSERT_EQ(out[i], in[i] * 0.5f) << i;
+}
+
+TEST_F(DirectVolume, TheClaimDoesNotFollowLaterChanges) {
+    Effect e = create(37);
+    ASSERT_EQ(e.setParam(SP_PARAM_MASTER, {0x02, 0, 0, 0, 0, 0, 0, 0}), 0);  // direct volume off
+    EXPECT_TRUE(global.claimsVolumeControl());
+    std::vector<std::uint8_t> v;
+    ASSERT_EQ(e.getParam(SP_PARAM_MASTER, v), 0);
+    EXPECT_EQ(v[0], 0x02);  // the stored setting changed; the claim waits for a reload
+}
+
+TEST_F(DirectVolume, DumpShowsTheVolume) {
+    Effect e = createRunning(38);
+    (void)controllerVolume(e, kQuarter, kQuarter);
+    (void)play(e, 0.4, 960);
+    int fds[2];
+    ASSERT_EQ(::pipe(fds), 0);
+    std::vector<std::uint8_t> cmd(4);
+    std::memcpy(cmd.data(), &fds[1], 4);
+    ASSERT_EQ((*e.h)->command(e.h, EFFECT_CMD_DUMP, 4, cmd.data(), nullptr, nullptr), 0);
+    ::close(fds[1]);
+    char text[1024] = {};
+    ASSERT_GT(::read(fds[0], text, sizeof(text) - 1), 0);
+    ::close(fds[0]);
+    EXPECT_NE(std::strstr(text, "flags 0x18"), nullptr) << text;  // claimed and applied
+    EXPECT_NE(std::strstr(text, "volume -12.0/-12.0 dB applied (stage -12.0 dB), "
+                                "peak in -8.0 out -20.0 dBFS"),
+              nullptr)
+        << text;
+}
+
 TEST_F(EffectApi, ProcessValidatesBuffers) {
     Effect e = createRunning(11);
     std::vector<float> a(512), b(512);
@@ -496,6 +666,11 @@ TEST_F(EffectApi, DumpWritesAStatusLine) {
     EXPECT_NE(std::strstr(text, "SoundPower"), nullptr) << text;
     EXPECT_NE(std::strstr(text, "session 12"), nullptr) << text;
     EXPECT_NE(std::strstr(text, "active"), nullptr) << text;
+    // Without direct volume control the mixer applies the volume; nothing played yet.
+    EXPECT_NE(std::strstr(text, "volume 0.0/0.0 dB by mixer (stage 0.0 dB), "
+                                "peak in -999.0 out -999.0 dBFS"),
+              nullptr)
+        << text;
 }
 
 TEST_F(EffectApi, SecondInstanceOnTheSameStreamPassesThrough) {

@@ -1,8 +1,10 @@
-# SoundPower parameter protocol — version 1.1
+# SoundPower parameter protocol — version 1.2
 
-Version 1.1 adds `TONE`, `STEREO` and `COMPRESSOR`, the `MASTER` flag that turns the limiter off,
-and the matching capability bits. A 1.1 controller sends the new IDs only when `PROTOCOL_INFO`
-reports their capability; a 1.0 effect skips their `state.bin` entries and ignores the new flag.
+Version 1.2 adds direct volume control: a `MASTER` flag, a capability bit and two `STATUS` flags.
+Version 1.1 added `TONE`, `STEREO` and `COMPRESSOR`, the `MASTER` flag that turns the limiter off,
+and the matching capability bits. A controller sends the new IDs only when `PROTOCOL_INFO`
+reports their capability; an older effect skips their `state.bin` entries and ignores the new
+flags.
 
 This document is the contract between `libsoundpower.so` and anything that controls it (the app, tests,
 the host harness). Its machine-readable counterpart is
@@ -20,7 +22,39 @@ Both are random (version 4) UUIDs and never change across releases. The library 
 the shared object is `libsoundpower.so`, and the log tag is `SoundPower`.
 
 Descriptor flags: `EFFECT_FLAG_TYPE_INSERT | EFFECT_FLAG_INSERT_LAST | EFFECT_FLAG_VOLUME_IND |
-EFFECT_FLAG_DEVICE_IND`. The effect does not claim volume control and does not support offload.
+EFFECT_FLAG_DEVICE_IND`, with `EFFECT_FLAG_VOLUME_CTRL` in place of `EFFECT_FLAG_VOLUME_IND`
+when direct volume control is on (see `MASTER`). The effect does not support offload.
+
+## Direct volume control (1.2)
+
+With `MASTER` bit 3 set when the library is loaded, the descriptor claims
+`EFFECT_FLAG_VOLUME_CTRL`. AudioFlinger then sends `EFFECT_CMD_SET_VOLUME` with a reply buffer
+to the chain's volume controller (the last enabled effect with that flag in the session's
+chain). SoundPower answers with unity (`1 << 24` for both channels), so the mixer feeds the
+chain at full scale, and applies the stream volume itself:
+
+- After the compressor and just before the limiter, ramped over 10 ms, so the limiter only works
+  when the output itself would go over its ceiling.
+- With auto-preamp on, the volume stage gives back the attenuation auto-preamp took off the EQ's
+  peak, as far as the volume leaves room for it. Its gain is `v · min(cut, 1 / v_max)` per
+  channel, where `cut` is auto-preamp's attenuation as a gain ≥ 1 and `v_max` the louder
+  channel's volume: the EQ boost is heard in full up to the volume where it would clip, and
+  above that the peak stays where auto-preamp alone puts it.
+- The dry signal (A/B bypass, the enable and disable fades, the duplicate-session pass-through,
+  and the last buffer before `process()` returns `-ENODATA`) gets the plain volume, so no path
+  leaves at the mixer's full scale.
+
+If another effect after SoundPower is the controller, SoundPower gets `SET_VOLUME` without a
+reply and applies nothing (`STATUS` bit 4 stays clear). Sessions with two tracks at different
+volumes (a player crossfading inside one session) are mixed at unity, and the chain applies the
+last volume it received to both.
+
+The effects factory reads the descriptor once, when it loads the library, so the library reads
+bit 3 from `state.bin` at that moment (on its first descriptor query or instance creation) and
+keeps the answer for the life of the process: changing the flag takes effect after the audio
+HAL restarts (a reboot, or a root `setprop ctl.restart` of the HAL service). `STATUS` bit 3
+reports what the running library decided. With the flag off the effect behaves exactly as in
+1.1.
 
 ## Transport
 
@@ -96,15 +130,15 @@ Out-of-range numeric values are **clamped**, not rejected. `GET_PARAM` returns t
 | Offset | Type | Field |
 |---|---|---|
 | 0 | u16 | `major` (1) |
-| 2 | u16 | `minor` (1) |
+| 2 | u16 | `minor` (2) |
 | 4 | u32 | `lib_version`: `(major << 16) \| (minor << 8) \| patch` of `VERSION` |
 | 8 | u32 | `max_bands` (32) |
 | 12 | u32 | `capabilities`: bitmask, see `SP_CAP_*` |
 
 Capabilities: bit 0 parametric EQ, 1 limiter, 2 spectrum, 3 convolver, 4 multiband compressor,
 5 psychoacoustic bass, 6 loudness, 7 (reserved, was "width"), 8 crossfeed, 9 `TONE`, 10 `STEREO`,
-11 `COMPRESSOR`, 12 the limiter-off flag, 13 band channels. A 1.1 library reports bits 0, 1
-and 9–13.
+11 `COMPRESSOR`, 12 the limiter-off flag, 13 band channels, 14 direct volume control (1.2). A 1.2
+library reports bits 0, 1 and 9–14.
 
 ### `0x0002 STATUS` (GET)
 
@@ -120,7 +154,7 @@ Describes the instance that answers, plus process-wide counters.
 | 20 | f32 | `cpu_peak_percent`: maximum since last read |
 | 24 | u32 | `instances`: live instances in the process (at most 64; `create_effect` fails with `-ENOMEM` beyond that) |
 | 28 | i32 | `session_id` |
-| 32 | u32 | `flags`: bit 0 bypassed, bit 1 duplicate-session guard active, bit 2 non-finite input detected |
+| 32 | u32 | `flags`: bit 0 bypassed, bit 1 duplicate-session guard active, bit 2 non-finite input detected, bit 3 the library claims volume control (1.2), bit 4 an enabled instance in the process applies its stream's volume (1.2) |
 | 36 | f32 | `limiter_gr_db`: current limiter gain reduction (≤ 0) |
 | 40 | u64 | `frames_processed` |
 
@@ -134,7 +168,7 @@ samples from a lock-free ring buffer that `process()` fills.
 
 | Offset | Type | Field | Range / default |
 |---|---|---|---|
-| 0 | u32 | `flags`: bit 0 bypass (A/B), bit 1 auto-preamp, bit 2 limiter off (1.1) | default `0x2` |
+| 0 | u32 | `flags`: bit 0 bypass (A/B), bit 1 auto-preamp, bit 2 limiter off (1.1), bit 3 direct volume control (1.2) | default `0x2` |
 | 4 | f32 | `preamp_db` | −30…+30, default 0 |
 
 With auto-preamp on, the effect adds `−max(0, peak of the EQ curve in dB)` to `preamp_db`, so the
@@ -143,6 +177,10 @@ curve.
 
 With bit 2 set the limiter stops reducing gain; its gain recovers with the release time, and its
 delay stays, so the latency does not change. A 1.0 effect ignores the bit and keeps limiting.
+
+Bit 3 requests direct volume control. It is stored and returned like the other flags, but it
+only acts when the library is loaded (see [Direct volume control](#direct-volume-control-12)).
+Older effects ignore it.
 
 ### `0x0200 EQ_STATE` (SET / GET)
 
@@ -284,6 +322,7 @@ bytes). They are generated by `protocol/vectors/generate.py`, which packs the va
 | `eq_state_channels` | `EQ_STATE` 1.1 with left, right, side, mid and all bands |
 | `limiter_default`, `limiter_custom` | `LIMITER` defaults; −3 dB / 5 ms / 250 ms |
 | `master_limiter_off` | `MASTER` (1.1): auto-preamp on, limiter off, +3.25 dB preamp |
+| `master_direct_volume` | `MASTER` (1.2): auto-preamp on, direct volume control on, −2.5 dB preamp |
 | `tone_default`, `tone_custom` | `TONE` defaults; off, bass +7.5 dB at 62.5 Hz, treble −3 dB at 12 kHz |
 | `stereo_default`, `stereo_custom` | `STEREO` defaults; mono, balance −0.25, width 1.5 |
 | `compressor_default`, `compressor_custom` | `COMPRESSOR` defaults; on, −24 dB, 4.5:1, 2.5 ms, 400 ms, hard knee, +6 dB |
@@ -291,6 +330,7 @@ bytes). They are generated by `protocol/vectors/generate.py`, which packs the va
 | `state_file_example` | `state.bin` with `MASTER`, `EQ_STATE` and `LIMITER` |
 | `state_file_unknown_entry` | The same from a newer minor version, with an extra unknown entry |
 | `state_file_v1_1` | `state.bin` 1.1: the six settable IDs, as the 1.1 library writes them |
+| `state_file_v1_2` | `state.bin` 1.2: the same with direct volume control on, as the 1.2 library writes them |
 
 The effect-lib tests embed these files at configure time and check both directions (encode and
 decode). The Kotlin tests (`android-core:protocol`) read the same files and must produce identical

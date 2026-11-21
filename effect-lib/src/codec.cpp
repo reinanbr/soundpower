@@ -85,6 +85,7 @@ int decodeMaster(wire::Reader& r, dsp::ChainParams& p) noexcept {
     p.bypass = (flags & SP_MASTER_FLAG_BYPASS) != 0;
     p.autoPreamp = (flags & SP_MASTER_FLAG_AUTO_PREAMP) != 0;
     p.limiter.enabled = (flags & SP_MASTER_FLAG_LIMITER_OFF) == 0;
+    p.directVolume = (flags & SP_MASTER_FLAG_DIRECT_VOLUME) != 0;
     p.preampDb = static_cast<double>(preampDb);
     return 0;
 }
@@ -216,6 +217,7 @@ int encodeParam(std::uint32_t id, const dsp::ChainParams& p, std::span<std::uint
             if (p.bypass) flags |= SP_MASTER_FLAG_BYPASS;
             if (p.autoPreamp) flags |= SP_MASTER_FLAG_AUTO_PREAMP;
             if (!p.limiter.enabled) flags |= SP_MASTER_FLAG_LIMITER_OFF;
+            if (p.directVolume) flags |= SP_MASTER_FLAG_DIRECT_VOLUME;
             w.write(flags);
             w.write(static_cast<float>(p.preampDb));
             return finish(w);
@@ -280,7 +282,8 @@ int encodeProtocolInfo(std::span<std::uint8_t> out) noexcept {
     w.write(packedLibraryVersion());
     w.write(std::uint32_t{SP_MAX_BANDS});
     w.write(std::uint32_t{SP_CAP_PARAMETRIC_EQ | SP_CAP_LIMITER | SP_CAP_TONE | SP_CAP_STEREO |
-                          SP_CAP_COMPRESSOR | SP_CAP_LIMITER_SWITCH | SP_CAP_BAND_CHANNEL});
+                          SP_CAP_COMPRESSOR | SP_CAP_LIMITER_SWITCH | SP_CAP_BAND_CHANNEL |
+                          SP_CAP_DIRECT_VOLUME});
     return finish(w);
 }
 

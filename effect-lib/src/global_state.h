@@ -12,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <atomic>
 #include <mutex>
 #include <span>
 #include <string>
@@ -58,6 +59,13 @@ public:
     /// Returns true if new parameters were applied.
     bool reloadStateFileIfChanged();
 
+    /// Direct volume control: whether the effect's descriptor claims EFFECT_FLAG_VOLUME_CTRL.
+    /// Decided once, on the first call (the effects factory reads the descriptor when it loads
+    /// the library and never again), from MASTER's direct-volume flag in the state file. Later
+    /// calls return the same answer; changing the flag takes effect when the library is loaded
+    /// again (audio HAL restart or reboot).
+    bool claimsVolumeControl();
+
     [[nodiscard]] dsp::ChainParams params() const;
     [[nodiscard]] std::size_t instanceCount() const;
 
@@ -85,6 +93,9 @@ private:
     const std::string statePath_;
     FileStamp stamp_{};
     bool haveStamp_ = false;
+
+    std::once_flag volumeControlOnce_;
+    std::atomic<bool> volumeControl_{false};
 };
 
 }  // namespace sp::fx

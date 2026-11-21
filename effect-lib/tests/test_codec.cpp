@@ -43,6 +43,22 @@ TEST(Codec, EncodesMatchGoldenVectors) {
     EXPECT_EQ(encode(SP_PARAM_TONE, v11), golden("tone_custom"));
     EXPECT_EQ(encode(SP_PARAM_STEREO, v11), golden("stereo_custom"));
     EXPECT_EQ(encode(SP_PARAM_COMPRESSOR, v11), golden("compressor_custom"));
+
+    dsp::ChainParams v12;
+    v12.preampDb = -2.5;
+    v12.directVolume = true;
+    EXPECT_EQ(encode(SP_PARAM_MASTER, v12), golden("master_direct_volume"));
+}
+
+TEST(Codec, DecodesTheDirectVolumeFlag) {
+    dsp::ChainParams p;
+    ASSERT_EQ(decodeParam(SP_PARAM_MASTER, golden("master_direct_volume"), p), 0);
+    EXPECT_TRUE(p.directVolume);
+    EXPECT_TRUE(p.autoPreamp);
+    EXPECT_EQ(p.preampDb, -2.5);
+    // A 1.1 MASTER has no direct-volume bit: it reads as off.
+    ASSERT_EQ(decodeParam(SP_PARAM_MASTER, golden("master_limiter_off"), p), 0);
+    EXPECT_FALSE(p.directVolume);
 }
 
 TEST(Codec, DecodesProtocol11GoldenVectors) {
@@ -112,7 +128,7 @@ TEST(Codec, ProtocolInfo) {
     EXPECT_EQ(info.max_bands, 32u);
     EXPECT_EQ(info.capabilities, SP_CAP_PARAMETRIC_EQ | SP_CAP_LIMITER | SP_CAP_TONE |
                                      SP_CAP_STEREO | SP_CAP_COMPRESSOR | SP_CAP_LIMITER_SWITCH |
-                                         SP_CAP_BAND_CHANNEL);
+                                         SP_CAP_BAND_CHANNEL | SP_CAP_DIRECT_VOLUME);
 }
 
 TEST(Codec, EncodeFailsWhenTheBufferIsTooSmall) {

@@ -24,8 +24,9 @@ COMPRESSOR = 0x0600
 PEAKING, LOW_SHELF, HIGH_SHELF, LOW_PASS, HIGH_PASS, NOTCH, BAND_PASS = range(7)
 
 
-def master(bypass, auto_preamp, preamp_db, limiter_off=False):
-    flags = (1 if bypass else 0) | (2 if auto_preamp else 0) | (4 if limiter_off else 0)
+def master(bypass, auto_preamp, preamp_db, limiter_off=False, direct_volume=False):
+    flags = ((1 if bypass else 0) | (2 if auto_preamp else 0) | (4 if limiter_off else 0) |
+             (8 if direct_volume else 0))
     return struct.pack("<If", flags, preamp_db)
 
 
@@ -145,6 +146,18 @@ VECTORS = {
                     (TONE, tone(False, 7.5, 62.5, -3.0, 12000.0)),
                     (STEREO, stereo(True, -0.25, 1.5)),
                     (COMPRESSOR, compressor(True, -24.0, 4.5, 2.5, 400.0, 0.0, 6.0))], minor=1)),
+    "master_direct_volume": (
+        "MASTER (0x0100), protocol 1.2: auto-preamp on, direct volume control on, preamp -2.5 dB",
+        master(False, True, -2.5, direct_volume=True)),
+    "state_file_v1_2": (
+        "state.bin, protocol 1.2: state_file_v1_1 with direct volume control on in MASTER "
+        "(auto-preamp on, limiter off, direct volume, preamp 3.25 dB)",
+        state_file([(MASTER, master(False, True, 3.25, limiter_off=True, direct_volume=True)),
+                    (EQ_STATE, eq_state(THREE_BANDS)),
+                    (LIMITER, limiter(-3.0, 5.0, 250.0)),
+                    (TONE, tone(False, 7.5, 62.5, -3.0, 12000.0)),
+                    (STEREO, stereo(True, -0.25, 1.5)),
+                    (COMPRESSOR, compressor(True, -24.0, 4.5, 2.5, 400.0, 0.0, 6.0))], minor=2)),
     "status_example": (
         "STATUS (0x0002): 48 kHz, 2 ch, float (0x5), active, cpu avg 1.25 % peak 4.5 %, "
         "3 instances, session -7, flags 0x5, limiter -2.75 dB, 123456789012 frames",

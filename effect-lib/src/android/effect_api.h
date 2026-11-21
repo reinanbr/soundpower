@@ -16,8 +16,10 @@ class GlobalState;
 
 namespace sp::fx::android {
 
-/// The effect descriptor returned by get_descriptor().
-[[nodiscard]] const effect_descriptor_t& descriptor() noexcept;
+/// The effect descriptor. `volumeControl` (GlobalState::claimsVolumeControl()) selects
+/// EFFECT_FLAG_VOLUME_CTRL (direct volume control) instead of EFFECT_FLAG_VOLUME_IND; nothing
+/// else differs.
+[[nodiscard]] const effect_descriptor_t& descriptor(bool volumeControl = false) noexcept;
 
 /// create_effect(), against `global` instead of the process-wide state.
 std::int32_t createEffect(GlobalState& global, const effect_uuid_t* uuid, std::int32_t sessionId,

@@ -92,8 +92,16 @@ inline dsp::ChainParams exampleParamsV11() {
     return p;
 }
 
+/// The parameters of state_file_v1_2: exampleParamsV11() with direct volume control on.
+inline dsp::ChainParams exampleParamsV12() {
+    dsp::ChainParams p = exampleParamsV11();
+    p.directVolume = true;
+    return p;
+}
+
 inline void expectSameParams(const dsp::ChainParams& a, const dsp::ChainParams& b) {
     EXPECT_EQ(a.bypass, b.bypass);
+    EXPECT_EQ(a.directVolume, b.directVolume);
     EXPECT_EQ(a.autoPreamp, b.autoPreamp);
     EXPECT_EQ(a.preampDb, b.preampDb);
     ASSERT_EQ(a.eq.count, b.eq.count);

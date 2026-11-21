@@ -82,7 +82,9 @@ TEST(Concurrency, ControlAndAudioThreadsDoNotInterfere) {
                 case 0: s->configure({i % 8 < 4 ? 44100u : 48000u, 2, SampleFormat::Float, false}); break;
                 case 1: s->setEnabled(i % 3 != 0); break;
                 case 2: s->reset(); break;
-                default: s->setVolume(static_cast<std::uint32_t>(i), 1u << 24); break;
+                default:
+                    s->setStreamVolume(static_cast<std::uint32_t>(i), 1u << 24, i % 8 == 3);
+                    break;
             }
             std::this_thread::sleep_for(std::chrono::microseconds(200));
         }

@@ -137,7 +137,29 @@ Status GlobalState::status(Instance& instance) {
     Status s = instance.statusLocked();
     s.instances = static_cast<std::uint32_t>(count_);
     if (params_.bypass) s.flags |= SP_STATUS_FLAG_BYPASSED;
+    if (volumeControl_.load(std::memory_order_acquire)) s.flags |= SP_STATUS_FLAG_VOLUME_CTRL;
+    for (std::size_t i = 0; i < count_; ++i) {
+        if (instances_[i]->volumeApplied() && instances_[i]->enabled()) {
+            s.flags |= SP_STATUS_FLAG_VOLUME_APPLIED;
+            break;
+        }
+    }
     return s;
+}
+
+bool GlobalState::claimsVolumeControl() {
+    std::call_once(volumeControlOnce_, [this] {
+        reloadStateFileIfChanged();
+        bool claim;
+        {
+            std::lock_guard lock(mutex_);
+            claim = params_.directVolume;
+        }
+        volumeControl_.store(claim, std::memory_order_release);
+        log::info("direct volume control %s", claim ? "on: the effect applies the stream volume"
+                                                    : "off");
+    });
+    return volumeControl_.load(std::memory_order_acquire);
 }
 
 bool GlobalState::reloadStateFileIfChanged() {

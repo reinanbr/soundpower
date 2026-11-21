@@ -67,9 +67,9 @@ The order is fixed. The bold stages exist; the rest arrive in phase 11 (see the
 [roadmap](roadmap.md)).
 
 **input → preamp → parametric EQ (≤32 bands, each on all channels, left, right, mid or side) → bass
-and treble shelves → balance, width and mono → compressor → lookahead limiter (switchable) →
-output**, later with convolution, bass enhancement, loudness compensation, a multiband compressor
-and crossfeed in between.
+and treble shelves → balance, width and mono → compressor → stream volume (direct volume control
+only) → lookahead limiter (switchable) → output**, later with convolution, bass enhancement,
+loudness compensation, a multiband compressor and crossfeed in between.
 
 - **Band channels.** A band filters all channels, the left or the right one, or the mid
   ((L+R)/2) or side ((L−R)/2) signal. Bands run in order; at the first mid or side band the first
@@ -83,6 +83,14 @@ and crossfeed in between.
   estimate when both are combined (mid/side gains mix into both channels).
 - **The limiter** can be switched off (it then passes audio through but keeps its delay, so
   switching never shifts the timing). With it off, peaks above 0 dBFS clip in the mixer.
+- **Stream volume (direct volume control).** Normally the mixer applies the stream volume
+  before the chain. With direct volume control the effect is the session's volume controller:
+  the mixer feeds it at full scale and the volume stage applies the volume (10 ms ramps) after the
+  compressor, so dynamics do not depend on the volume and the limiter sees the real output level.
+  It also gives back auto-preamp's attenuation up to where the volume leaves room
+  (`v · min(cut, 1 / v_max)`), so large boosts are heard in full at every volume below the one
+  where they would clip. The dry path gets the plain volume. See the
+  [protocol](protocol.md#direct-volume-control-12) for the framework side.
 
 - **A/B bypass** crossfades (~20 ms) between the processed signal and a **latency-aligned dry path**. The
   dry signal is delayed by the limiter lookahead, so the crossfade never comb-filters.
@@ -132,7 +140,9 @@ A build-time test checks all of this, plus 16 KB segment alignment for 64-bit AB
 | `src/log.*` | Logging with the fixed tag `SoundPower` (`liblog` on Android, `stderr` on the host when `SP_LOG` is set). Never called from `process()`. |
 
 **Descriptor.** Type `69dc09f7-…`, implementation `23e79ffb-…` (see the [protocol](protocol.md)), flags
-`INSERT | INSERT_LAST | VOLUME_IND | DEVICE_IND`, no offload. `cpuLoad` and `memoryUsage` are declared as
+`INSERT | INSERT_LAST | VOLUME_IND | DEVICE_IND` (`VOLUME_CTRL` instead of `VOLUME_IND` when
+direct volume control was on in `state.bin` when the library loaded), no offload. `cpuLoad` and
+`memoryUsage` are declared as
 0 and 1. AudioPolicy adds the declared values of every live effect and refuses new effects above about
 43 MIPS / 512 KB. Postprocess creates one instance per session, so honest per-instance figures would make
 SoundPower (or other effects) fail to attach once a few sessions play at once.
@@ -149,9 +159,10 @@ is TPDF-dithered. Anything else makes `SET_CONFIG` fail with `-EINVAL`, keeping 
 | `SET_CONFIG` / `GET_CONFIG` | Validate and apply / report the stream format. Fields not set in `mask` keep their values; a zero mask means all fields. |
 | `ENABLE` / `DISABLE` | Fade the processed signal in or out over 10 ms. After the fade-out, `process()` passes the input through and returns `-ENODATA`, which tells AudioFlinger to stop calling it. |
 | `SET_PARAM` / `GET_PARAM` | The [protocol](protocol.md). Any instance accepts parameters for the whole process. |
-| `SET_DEVICE`, `SET_VOLUME` | Recorded (atomics only) for diagnostics; v1 does not use them. `SET_VOLUME` echoes the volumes unchanged, so the framework still applies the full volume. |
+| `SET_DEVICE` | Recorded (atomics only) for diagnostics. |
+| `SET_VOLUME` | Atomics only. Without direct volume control the volume is recorded for diagnostics, and a reply (unexpected then) echoes it, so the framework applies the full volume. With it, the chain's volume controller (the call with a reply buffer) answers unity and applies the volume itself; a call without a reply means another effect controls the volume, and SoundPower applies none. |
 | `OFFLOAD` | Returns `-EINVAL` for offloaded outputs (the effect is not offloadable). |
-| `DUMP` | Writes one status line to the given file descriptor (`dumpsys media.audio_flinger`). |
+| `DUMP` | Writes one status line to the given file descriptor (`dumpsys media.audio_flinger`); see [debugging](debugging.md). |
 | anything else | `-EINVAL`. |
 
 **Duplicate-session guard.** A second instance on the same session and output (for example, from

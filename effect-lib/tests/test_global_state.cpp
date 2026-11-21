@@ -230,6 +230,24 @@ TEST(GlobalState, LoadsTheStateFileWhenItChanges) {
     EXPECT_EQ(g.params().eq.count, 1u);
 }
 
+TEST(GlobalState, VolumeControlIsDecidedOnceFromTheStateFile) {
+    const std::string path = test::tempPath("state.bin");
+    writeFile(path, golden("state_file_v1_2"));  // direct volume control on
+    GlobalState g(path);
+    EXPECT_TRUE(g.claimsVolumeControl());  // reads the file itself
+    EXPECT_TRUE(g.params().directVolume);
+
+    // Turning it off changes the stored setting, not the claim made at load.
+    writeFile(path, golden("state_file_v1_1"));
+    EXPECT_TRUE(g.reloadStateFileIfChanged());
+    EXPECT_FALSE(g.params().directVolume);
+    EXPECT_TRUE(g.claimsVolumeControl());
+    std::remove(path.c_str());
+
+    GlobalState fresh(path);  // no file: off
+    EXPECT_FALSE(fresh.claimsVolumeControl());
+}
+
 TEST(GlobalState, NoStateFilePathMeansNoFile) {
     GlobalState g;
     EXPECT_FALSE(g.reloadStateFileIfChanged());

@@ -1,5 +1,5 @@
 /*
- * SoundPower parameter protocol, version 1.1.
+ * SoundPower parameter protocol, version 1.2.
  *
  * Copyright (C) 2026 SoundPower contributors
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -24,7 +24,7 @@ extern "C" {
 /* ---- Versions ------------------------------------------------------------------------------ */
 
 #define SP_PROTOCOL_VERSION_MAJOR 1
-#define SP_PROTOCOL_VERSION_MINOR 1
+#define SP_PROTOCOL_VERSION_MINOR 2
 
 /* ---- Effect identity ----------------------------------------------------------------------- */
 
@@ -133,6 +133,7 @@ enum sp_param_id {
 #define SP_CAP_COMPRESSOR (1u << 11)    /* COMPRESSOR, since 1.1 */
 #define SP_CAP_LIMITER_SWITCH (1u << 12) /* SP_MASTER_FLAG_LIMITER_OFF, since 1.1 */
 #define SP_CAP_BAND_CHANNEL (1u << 13)   /* sp_band_t.channel, since 1.1 */
+#define SP_CAP_DIRECT_VOLUME (1u << 14)  /* SP_MASTER_FLAG_DIRECT_VOLUME, since 1.2 */
 
 /* ---- Band types (values match sp::dsp::FilterType) ----------------------------------------- */
 
@@ -165,6 +166,9 @@ enum sp_band_channel {
 #define SP_MASTER_FLAG_BYPASS (1u << 0)
 #define SP_MASTER_FLAG_AUTO_PREAMP (1u << 1)
 #define SP_MASTER_FLAG_LIMITER_OFF (1u << 2) /* since 1.1; 1.0 effects ignore it */
+/* Since 1.2: direct volume control. Read only when the library is loaded, because it decides
+ * the descriptor's volume flags; see docs/protocol.md. Older effects ignore it. */
+#define SP_MASTER_FLAG_DIRECT_VOLUME (1u << 3)
 #define SP_TONE_FLAG_ENABLED (1u << 0)
 #define SP_TONE_FLAGS_DEFAULT SP_TONE_FLAG_ENABLED
 #define SP_STEREO_FLAG_MONO (1u << 0)
@@ -174,6 +178,8 @@ enum sp_band_channel {
 #define SP_STATUS_FLAG_BYPASSED (1u << 0)
 #define SP_STATUS_FLAG_DUPLICATE_SESSION (1u << 1)
 #define SP_STATUS_FLAG_NONFINITE_INPUT (1u << 2)
+#define SP_STATUS_FLAG_VOLUME_CTRL (1u << 3)    /* since 1.2: the library claims volume control */
+#define SP_STATUS_FLAG_VOLUME_APPLIED (1u << 4) /* since 1.2: it applies a live stream's volume */
 
 /* STATUS.format values: Android's audio_format_t codes for the formats the effect accepts. */
 #define SP_FORMAT_PCM_16_BIT 0x1u

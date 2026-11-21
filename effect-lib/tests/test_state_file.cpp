@@ -14,7 +14,16 @@ namespace {
 using test::golden;
 
 TEST(StateFile, EncodeMatchesGoldenVector) {
-    EXPECT_EQ(encodeStateFile(test::exampleParamsV11()), golden("state_file_v1_1"));
+    EXPECT_EQ(encodeStateFile(test::exampleParamsV12()), golden("state_file_v1_2"));
+}
+
+TEST(StateFile, AppliesTheProtocol12GoldenVector) {
+    dsp::ChainParams p;
+    const StateFileResult r = applyStateFile(golden("state_file_v1_2"), p);
+    ASSERT_EQ(r.error, StateFileError::None) << toString(r.error);
+    EXPECT_EQ(r.applied, 6u);
+    EXPECT_EQ(r.minor, 2u);
+    test::expectSameParams(p, test::exampleParamsV12());
 }
 
 TEST(StateFile, AppliesTheProtocol11GoldenVector) {

@@ -32,8 +32,8 @@ struct StreamConfig {
 ///
 /// Threading:
 ///  - configure(), setEnabled(), reset(): control side (binder threads), any number of them.
-///  - setDevice(), setVolume(): any thread, lock-free (AudioFlinger may call them from its mixer
-///    thread).
+///  - setDevice(), setStreamVolume(): any thread, lock-free (AudioFlinger may call them from its
+///    mixer thread).
 ///  - process(): the audio thread. No allocation, locks, logging or I/O. It may run at the same
 ///    time as any control call, including configure(): engines are swapped with a hazard
 ///    pointer, and the control side waits for the audio thread to let go of the old one.
@@ -69,11 +69,29 @@ public:
     [[nodiscard]] std::uint32_t device() const noexcept {
         return device_.load(std::memory_order_relaxed);
     }
-    /// Stream volume per channel, 8.24 fixed point, as sent by EFFECT_CMD_SET_VOLUME.
-    void setVolume(std::uint32_t left, std::uint32_t right) noexcept {
-        volumeLeft_.store(left, std::memory_order_relaxed);
-        volumeRight_.store(right, std::memory_order_relaxed);
+    /// Stream volume per channel, 8.24 fixed point, as sent by EFFECT_CMD_SET_VOLUME. With
+    /// `apply` this instance told the mixer it applies the volume itself (direct volume
+    /// control), so every path out of process() carries it, pass-through included.
+    void setStreamVolume(std::uint32_t left, std::uint32_t right, bool apply) noexcept {
+        volume_.store(std::uint64_t{left} | (std::uint64_t{right} << 32),
+                      std::memory_order_relaxed);
+        volumeApplied_.store(apply, std::memory_order_release);
     }
+    [[nodiscard]] bool volumeApplied() const noexcept {
+        return volumeApplied_.load(std::memory_order_acquire);
+    }
+    /// The last stream volume received, as linear gains (clamped to 0..1).
+    [[nodiscard]] dsp::StreamVolume streamVolume() const noexcept;
+
+    /// For DUMP: the volume, the gain of the chain's volume stage, and the input and output
+    /// peaks since the previous call (in dBFS, -inf for silence).
+    struct VolumeReport {
+        dsp::StreamVolume volume;
+        double stageGainDb = 0.0;
+        double inputPeakDb = 0.0;
+        double outputPeakDb = 0.0;
+    };
+    [[nodiscard]] VolumeReport takeVolumeReport();
     /// True while the duplicate-session guard keeps this instance in pass-through.
     [[nodiscard]] bool duplicate() const noexcept {
         return duplicate_.load(std::memory_order_acquire);
@@ -122,14 +140,16 @@ private:
     std::atomic<bool> enabled_{false};
     std::atomic<bool> duplicate_{false};
     std::atomic<std::uint32_t> device_{0};
-    std::atomic<std::uint32_t> volumeLeft_{1u << 24};
-    std::atomic<std::uint32_t> volumeRight_{1u << 24};
+    std::atomic<std::uint64_t> volume_{(std::uint64_t{1} << 24) | (std::uint64_t{1} << 56)};
+    std::atomic<bool> volumeApplied_{false};
 
     // Audio thread → control side.
     std::atomic<AudioState> audioState_{AudioState::Idle};
     std::atomic<float> cpuAvgPercent_{0.0f};
     std::atomic<float> cpuPeakPercent_{0.0f};
     std::atomic<std::uint64_t> framesProcessed_{0};
+    std::atomic<float> inputPeak_{0.0f};   ///< max |sample| since the last report
+    std::atomic<float> outputPeak_{0.0f};
 
     static_assert(std::atomic<std::uint64_t>::is_always_lock_free);
     static_assert(std::atomic<float>::is_always_lock_free);
