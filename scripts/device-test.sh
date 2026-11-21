@@ -48,7 +48,8 @@ if [ "$(su_sh 'id -u')" != 0 ]; then
 fi
 
 # ---- 1. Effects HAL ------------------------------------------------------------------------
-hal=$(su_sh 'lshal -i -r -m -p' | grep 'audio\.effect@.*IEffectsFactory/default' | grep -v 'N/A *$' | head -n 1)
+# lshal prints the interface in several tables; only the one for running servers has a command.
+hal=$(su_sh 'lshal -i -r -m -p' | grep 'audio\.effect@.*IEffectsFactory/default' | awk 'NF >= 3' | head -n 1)
 if [ -n "$hal" ]; then
     pass "HIDL effects HAL: $(echo "$hal" | awk '{ print $1 }')"
     info "$(echo "$hal" | awk '{ print $2 "-bit, " $3 }')"

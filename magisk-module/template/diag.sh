@@ -12,7 +12,7 @@ echo "module: $(grep '^version=' "$MODDIR/module.prop" | cut -d= -f2)$([ -f "$MO
 echo "device: $(getprop ro.product.manufacturer) $(getprop ro.product.model), Android $(getprop ro.build.version.release) (API $(getprop ro.build.version.sdk)), $(getprop ro.product.cpu.abi)"
 
 echo "== effects HAL"
-lshal -i -r -m -p 2>/dev/null | grep 'audio\.effect@.*IEffectsFactory' | grep -v 'N/A *$'
+lshal -i -r -m -p 2>/dev/null | grep 'audio\.effect@.*IEffectsFactory' | awk 'NF >= 3' # with a server command
 service list 2>/dev/null | grep -i 'audio\.effect'
 sp_pid=$(sp_effects_hal_pid)
 if [ -n "$sp_pid" ]; then
