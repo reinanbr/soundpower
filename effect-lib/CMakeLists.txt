@@ -3,6 +3,9 @@
 # ---- Core: instances, shared state, protocol codec, state file. Any compiler. ------------------
 add_library(sp_effect_core STATIC
     src/codec.cpp
+    src/global_state.cpp
+    src/instance.cpp
+    src/log.cpp
     src/state_file.cpp)
 target_include_directories(sp_effect_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(sp_effect_core PUBLIC sp_dsp_core sp_protocol)
