@@ -38,6 +38,19 @@ if(SP_ALLOCATION_TESTS)
 endif()
 
 if(SP_HAVE_AELI)
+    # The Android effect API, driven the way AudioFlinger and the effects factory drive it.
+    add_executable(sp_effect_api_tests test_effect_api.cpp)
+    target_include_directories(sp_effect_api_tests PRIVATE ${_sp_test_includes})
+    target_link_libraries(sp_effect_api_tests PRIVATE sp_effect_aeli GTest::gtest_main ${CMAKE_DL_LIBS})
+    sp_set_warnings(sp_effect_api_tests)
+    add_dependencies(sp_effect_api_tests soundpower)
+    if(CMAKE_CROSSCOMPILING)
+        # adb-exec.sh pushes these next to the test binary.
+        sp_add_gtest(sp_effect_api_tests ENVIRONMENT "SP_DEVICE_FILES=$<TARGET_FILE:soundpower>")
+    else()
+        sp_add_gtest(sp_effect_api_tests ENVIRONMENT "SP_EFFECT_LIB=$<TARGET_FILE:soundpower>")
+    endif()
+
     if(ANDROID)
         set(_sp_readelf_hints "${ANDROID_TOOLCHAIN_ROOT}/bin")
     endif()
