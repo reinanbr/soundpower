@@ -30,4 +30,5 @@ rootProject.name = "soundpower"
 
 include(
     ":android-core:protocol",
+    ":android-core:model",
 )
