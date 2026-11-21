@@ -41,7 +41,7 @@ jobs:
 
       - name: Install Ninja (and the Clang sanitizer runtimes)
         run: |
-          packages=ninja-build
+          packages="ninja-build zip unzip"
           if [ "$CC" = clang ]; then
             packages="$packages libclang-rt-$(clang -dumpversion | cut -d. -f1)-dev"
           fi
@@ -147,5 +147,38 @@ jobs:
           path: build/${{ matrix.preset }}/effect-lib/libsoundpower.so
           if-no-files-found: error
 
-  # Phase 4 adds: Magisk module zip as a build artifact.
+  magisk-module:
+    # Lints the module scripts and builds the installable zip (both ABIs, stripped).
+    name: magisk-module
+    runs-on: ubuntu-24.04
+    env:
+      NDK_VERSION: 28.2.13676358
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Lint the shell scripts
+        run: |
+          shellcheck --version
+          shellcheck -s sh -S warning \
+            magisk-module/template/*.sh \
+            magisk-module/template/META-INF/com/google/android/update-binary \
+            magisk-module/build.sh magisk-module/tests/test_scripts.sh scripts/*.sh
+
+      - name: Install Ninja, zip and NDK r28
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build zip unzip
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build the module zip
+        run: magisk-module/build.sh
+
+      - name: Upload the module zip
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: soundpower-magisk-module
+          path: out/soundpower-module-*.zip
+          if-no-files-found: error
+
   # Phase 5 adds: Android app build and unit tests.
