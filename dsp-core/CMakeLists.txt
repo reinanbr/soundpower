@@ -19,4 +19,5 @@ endif()
 
 if(SP_BUILD_TOOLS)
     add_subdirectory(bench)
+    add_subdirectory(cli)
 endif()
