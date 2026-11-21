@@ -46,18 +46,28 @@ sp_effects_hal_pid() {
         awk '/audio\.effect@[0-9.]+::IEffectsFactory\/default/ && $2 ~ /^[0-9]+$/ { print $2; exit }'
 }
 
-# Prints the first tombstone newer than $1 whose backtrace has a frame in libsoundpower.so.
-sp_crash_in_library() { # $1 = reference file (its mtime is the start of this boot)
+# The text tombstones on the device, one "path size mtime" line each. post-fs-data.sh saves this
+# list at the start of every boot, and the watchdog compares tombstones with it rather than by
+# time: some devices only set the clock later in the boot (the test device starts in 2018).
+sp_tombstones() {
     for t in "$SP_ROOT"/data/tombstones/tombstone_*; do
         [ -f "$t" ] || continue
         case "$t" in *.pb) continue ;; esac
-        [ "$t" -nt "$1" ] || continue
-        if grep -qE '#[0-9]+ +pc +[0-9a-f]+ +[^ ]*libsoundpower\.so' "$t"; then
-            echo "$t"
-            return 0
-        fi
+        stat -c '%n %s %Y' "$t"
     done
-    return 1
+}
+
+# Prints the first tombstone that is not in the list $1 (new, or rewritten since) and whose
+# backtrace has a frame in libsoundpower.so.
+sp_crash_in_library() { # $1 = list written by sp_tombstones at the start of this boot
+    _sp_hit=$(sp_tombstones | while read -r _sp_t _sp_rest; do
+        grep -qxF "$_sp_t $_sp_rest" "$1" 2>/dev/null && continue
+        if grep -qE '#[0-9]+ +pc +[0-9a-f]+ +[^ ]*libsoundpower\.so' "$_sp_t"; then
+            echo "$_sp_t"
+            break
+        fi
+    done)
+    [ -n "$_sp_hit" ] && echo "$_sp_hit"
 }
 
 sp_log() { # $1 = log file, $2... = message

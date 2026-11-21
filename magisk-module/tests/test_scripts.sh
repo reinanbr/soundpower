@@ -268,12 +268,15 @@ new_moddir
 export FAKE_LOG="$work/fake.log"
 : >"$FAKE_LOG"
 mkdir -p "$work/policy"
+# A tombstone from an earlier boot, with a crash in the library.
+mkdir -p "$dev/data/tombstones"
+printf 'backtrace:\n      #00 pc 000000000004e3c4  /vendor/lib/soundfx/libsoundpower.so (sp::x+52)\n' >"$dev/data/tombstones/tombstone_04"
 (PATH=$stubs:$PATH SP_ROOT=$dev FAKE_POLICY_DIR=$work/policy sh "$moddir/post-fs-data.sh")
 ok "post-fs-data: creates the data directory" [ -d "$dev/data/vendor/soundpower" ]
 ok "post-fs-data: loads the rules when they were not preloaded" contains "$FAKE_LOG" "magiskpolicy --live --apply $moddir/sepolicy.rule"
 ok "post-fs-data: labels the data directory" contains "$FAKE_LOG" "chcon -R u:object_r:soundpower_data_file:s0 $dev/data/vendor/soundpower"
 ok "post-fs-data: logs the fallback" contains "$moddir/log/boot.log" "rules loaded at post-fs-data"
-ok "post-fs-data: boot mark" [ -f "$moddir/log/boot.mark" ]
+ok "post-fs-data: lists the existing tombstones" contains "$moddir/log/tombstones.txt" "$dev/data/tombstones/tombstone_04 "
 
 : >"$FAKE_LOG"
 (PATH=$stubs:$PATH SP_ROOT=$dev sh "$moddir/post-fs-data.sh")
@@ -281,13 +284,10 @@ ok "post-fs-data: no live policy load when preloaded" lacks "$FAKE_LOG" "magiskp
 ok "post-fs-data: bind-mounts the /odm copy" contains "$FAKE_LOG" "mount -o bind $moddir/bind/odm/etc/audio_effects.xml $dev/odm/etc/audio_effects.xml"
 ok "post-fs-data: logs the bind mount" contains "$moddir/log/boot.log" "bind-mounted /odm/etc/audio_effects.xml"
 
-# dash and busybox compare whole seconds in "test -nt": make this boot start well in the past.
-touch -d '2001-01-01' "$moddir/log/boot.mark"
-
 # Watchdog: a stable HAL.
 printf '1160\n' >"$work/pids"
 (PATH=$stubs:$PATH SP_ROOT=$dev FAKE_PIDS=$work/pids SP_WATCH_SECONDS=30 sh "$moddir/service.sh")
-ok "watchdog: stable HAL keeps the module" [ ! -f "$moddir/disable" ]
+ok "watchdog: stable HAL and an old crash keep the module" [ ! -f "$moddir/disable" ]
 ok "watchdog: logs the result" contains "$moddir/log/boot.log" "watchdog: no problem in 30s (0 restarts)"
 ok "watchdog: writes diag.txt" contains "$moddir/log/diag.txt" "SoundPower diagnostics"
 ok "diag: reports a mounted copy" contains "$moddir/log/diag.txt" "/vendor/etc/audio_effects.xml: patched"
@@ -299,23 +299,23 @@ printf '1160\n1200\n1300\n1400\n' >"$work/pids"
 ok "watchdog: restart loop disables the module" [ -f "$moddir/disable" ]
 ok "watchdog: says why" contains "$moddir/log/boot.log" "the effects HAL restarted 3 times"
 
-# Watchdog: a tombstone with a frame in the library.
+# Watchdog: a crash in the library during this boot.
 rm -f "$moddir/disable"
-mkdir -p "$dev/data/tombstones"
-printf '    /vendor/lib/soundfx/libsoundpower.so (mapped, not crashing)\n' >"$dev/data/tombstones/tombstone_00"
-touch -d '2000-01-01' "$dev/data/tombstones/tombstone_00"
-printf '    #00 pc 0004e3c4  /vendor/lib/soundfx/libsoundpower.so (BuildId: 1)\n' >"$dev/data/tombstones/tombstone_01.pb"
 printf 'backtrace:\n      #00 pc 000000000004e3c4  /vendor/lib/soundfx/libsoundpower.so (sp::x+52)\n' >"$dev/data/tombstones/tombstone_02"
 printf '1160\n' >"$work/pids"
 (PATH=$stubs:$PATH SP_ROOT=$dev FAKE_PIDS=$work/pids SP_WATCH_SECONDS=30 sh "$moddir/service.sh")
 ok "watchdog: crash in the library disables the module" [ -f "$moddir/disable" ]
 ok "watchdog: names the tombstone" contains "$moddir/log/boot.log" "tombstone_02"
 
-# sp_crash_in_library ignores old tombstones, protobuf ones and ones without a frame in the library.
+# sp_crash_in_library skips listed tombstones, protobuf ones and ones without a frame in the
+# library, but not a listed name that tombstoned has since reused.
 rm -f "$dev/data/tombstones/tombstone_02"
+printf '    #00 pc 0004e3c4  /vendor/lib/soundfx/libsoundpower.so (BuildId: 1)\n' >"$dev/data/tombstones/tombstone_01.pb"
 printf 'backtrace:\n      #00 pc 000000000004e3c4  /system/lib/libc.so (abort+52)\n    /vendor/lib/soundfx/libsoundpower.so\n' >"$dev/data/tombstones/tombstone_03"
-crash=$(SP_ROOT=$dev sh -c '. "$1/common.sh"; sp_crash_in_library "$1/log/boot.mark"' sh "$moddir")
-ok "tombstones: only frames in the library count" [ -z "$crash" ]
+crash_in_library() { SP_ROOT=$dev sh -c '. "$1/common.sh"; sp_crash_in_library "$1/log/tombstones.txt"' sh "$moddir"; }
+ok "tombstones: only new frames in the library count" [ -z "$(crash_in_library)" ]
+printf 'backtrace:\n      #00 pc 000000000004e3c4  /vendor/lib64/soundfx/libsoundpower.so (sp::y+8)\n      #01 pc 0 x\n' >"$dev/data/tombstones/tombstone_04"
+ok "tombstones: a reused name counts" [ "$(crash_in_library)" = "$dev/data/tombstones/tombstone_04" ]
 
 echo "$checks checks, $failures failed"
 [ "$failures" = 0 ]

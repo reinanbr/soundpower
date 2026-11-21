@@ -7,6 +7,7 @@
 # inside libsoundpower.so, the module disables itself for the next boot and says why in
 # log/boot.log. Then it writes log/diag.txt.
 MODDIR=${0%/*}
+umask 022
 # shellcheck source=common.sh
 . "$MODDIR/common.sh"
 SP_LOG=$MODDIR/log/boot.log
@@ -35,7 +36,7 @@ while [ "$sp_elapsed" -lt "$SP_WATCH_SECONDS" ]; do
     [ -n "$sp_pid" ] && sp_last=$sp_pid
 
     sp_reason=
-    if sp_tomb=$(sp_crash_in_library "$MODDIR/log/boot.mark"); then
+    if sp_tomb=$(sp_crash_in_library "$MODDIR/log/tombstones.txt"); then
         sp_reason="crash inside $SP_LIB ($sp_tomb)"
     elif [ "$sp_restarts" -ge "$SP_MAX_RESTARTS" ]; then
         sp_reason="the effects HAL restarted $sp_restarts times"

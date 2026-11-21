@@ -4,12 +4,13 @@
 # Runs early at every boot (blocking, before the audio HAL starts): prepares the data directory
 # the effect reads its saved state from, and bind-mounts files Magisk cannot overlay.
 MODDIR=${0%/*}
+umask 022
 # shellcheck source=common.sh
 . "$MODDIR/common.sh"
 SP_LOG=$MODDIR/log/boot.log
 mkdir -p "$MODDIR/log"
 : >"$SP_LOG"
-touch "$MODDIR/log/boot.mark" # the start of this boot, for the watchdog in service.sh
+sp_tombstones >"$MODDIR/log/tombstones.txt" # what already existed, for the watchdog in service.sh
 sp_log "$SP_LOG" "post-fs-data: $(grep '^version=' "$MODDIR/module.prop")"
 
 # The audio HAL reads $SP_DATA_DIR/state.bin; sepolicy.rule defines the type that allows it.
