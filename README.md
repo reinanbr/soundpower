@@ -10,7 +10,9 @@ features (see [the mode without root](docs/architecture.md#mode-without-root)).
 > **Status:** early development. The DSP core, the Android effect library, the Magisk module and
 > the app are in place: graphic (5–32 bands) and parametric (up to 32 bands, each on both
 > channels, left, right, mid or side) equalizers, bass and treble, balance, width and mono, a
-> compressor and a limiter. Presets, per-device profiles and more effects follow; see the
+> compressor and a limiter. Presets: built-in ones, the user's (locked or autosaved, shared as
+> JSON), headphone corrections from AutoEQ, and per-output presets that switch when the speaker,
+> headphones or a Bluetooth or USB device starts playing. More effects follow; see the
 > [roadmap](docs/roadmap.md).
 > Once installed, the effect runs on music streams that go through the audio mixer (offloaded and
 > direct outputs bypass software effects; see [risks](docs/risks.md)), and the app changes it
@@ -111,6 +113,11 @@ the bundled module, and asks for a reboot. Once the effect is loaded, it opens t
 Changes reach the effect at once and are saved to `state.bin`, so they apply from boot even if the
 app never runs again. **Without root** it opens the equalizer straight away and keeps Android's
 effect attached from a foreground service while the equalizer is on (also after a reboot).
+
+Presets are under the title of the equalizer page: tap it for the list (search, filters, long press
+for the rest), and the bookmark saves the current settings, optionally for some outputs. The
+`autoeq.tsv` asset comes from `tools/autoeq/build_db.py` (see
+[presets and outputs](docs/architecture.md#presets-and-outputs)).
 
 ## Trying the DSP on WAV files
 

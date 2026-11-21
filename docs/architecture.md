@@ -196,12 +196,12 @@ Gradle modules; the Gradle root is the repository root.
 | Module | Kind | Contents |
 |---|---|---|
 | `android-core:protocol` | JVM | Kotlin mirror of `protocol.h`: payload codecs and the `state.bin` format. Its tests read `protocol/vectors/*.hex` and must produce the same bytes as the C++ side. |
-| `android-core:model` | JVM | `AudioSettings` (what the app stores: graphic layouts and gains, parametric bands with type, channel, colour and lock, tone, stereo and dynamics, as JSON), `EqSettings` (the protocol payloads derived from it, minus what the connected effect's capabilities do not list), and `ResponseCurve`, which computes the curve per channel and auto-preamp exactly like the C++ core (checked against `sp-cli response` output). |
-| `android-core:data` | JVM | DataStore of `AudioSettings` as JSON, with a one-time import of the first version's store. |
+| `android-core:model` | JVM | `AudioSettings` (what the app stores: graphic layouts and gains, parametric bands with type, channel, colour and lock, tone, stereo and dynamics, as JSON), `EqSettings` (the protocol payloads derived from it, minus what the connected effect's capabilities do not list), and `ResponseCurve`, which computes the curve per channel and auto-preamp exactly like the C++ core (checked against `sp-cli response` output). Presets (`Preset`, `BuiltInPresets`, the `PresetFile` JSON format), AutoEQ files and the bundled database (`AutoEq`, `AutoEqIndex`), outputs and assignments (`OutputKey`, `PresetLibrary`), and the settings backup (`SettingsBackup`). |
+| `android-core:data` | JVM | DataStore of `AudioSettings` as JSON, with a one-time import of the first version's store; `PresetStore`, the DataStore of the `PresetLibrary`. |
 | `android-core:root` | Android | `RootShell` (libsu) and `ModuleManager`: Magisk version, module state, `magisk --install-module`, reboot, the state-file write, `dumpsys` parsing. Its tests run the shell scripts in the host's `sh` against a temporary tree. |
 | `android-core:effect` | Android | `EffectController` and its `AudioEffect` transport (HiddenApiBypass). |
 | `android-core:rootless` | Android | `RootlessEngine`: the mode without root, on Android's `DynamicsProcessing` effect (`DynamicsEffect` wraps it so the engine is tested on the JVM). The plan it applies (`SpectralLayout`, `DynamicsPlan`) lives in `android-core:model`. |
-| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, `RootlessService` and `BootReceiver` (mode without root), and `AppContainer` (dependency injection by hand). |
+| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, `PresetRepository` and `OutputMonitor` (presets and outputs), `EqService` and `BootReceiver` (the background service), and `AppContainer` (dependency injection by hand). |
 
 **Control path.** `EffectController` creates an `AudioEffect` with SoundPower's type and
 implementation UUIDs on a session from `generateAudioSessionId()`. That constructor and
@@ -221,15 +221,17 @@ and gives the file a new inode, so the library reloads it at the next instance. 
 identical writes. At start the app writes `state.bin` once, so a fresh install gets the app's
 settings from the next boot on.
 
-**Pages.** The main screen has three pages in a navigation bar. *Equalizer*: the on/off switch,
-reset (with undo), graphic or parametric mode, quick switches for the limiter and auto-preamp, a
+**Pages.** The main screen has three pages in a navigation bar. *Equalizer*: the current preset as
+the title (marked when changed; a tap opens the preset list), save as preset, the on/off switch,
+reset (with undo), an AutoEQ suggestion when headphones connect, graphic or parametric mode, quick switches for the limiter and auto-preamp, a
 preamp fader beside the bands, and bass and treble knobs. In graphic mode a response strip sits
 above the band faders; when the bands scroll it frames the ones in view, and tapping or dragging it
 scrolls them. In parametric mode the curve shows a marker per band in the band's colour (drag to
 move, long-press to type), a dashed curve for each channel with bands of its own, and a card per
 band with type, channel, colour, lock and knobs for frequency, gain and Q. *Tone and dynamics*:
 knobs for bass and treble with their frequencies, balance and width (plus mono), the compressor
-and the limiter. *Menu*: band configuration, reset, setup and status, theme, version.
+and the limiter. *Menu*: band configuration, reset, presets (the list, switching by output, AutoEQ
+suggestions, settings export and import), setup and status, theme, version.
 
 **Motion.** A control under the finger follows it exactly; a value that changes on its own (reset,
 typed value, mode switch) springs to it. Dragged values stick briefly at their centre with a tick,
@@ -282,15 +284,53 @@ output that plays music and moves it with the route. *Players that announce thei
 sessions players open with `ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION`, for devices where session 0
 has no effect.
 
-**Lifetime.** Android removes an app's effects when its process dies, so `RootlessService`, a
+**Lifetime.** Android removes an app's effects when its process dies, so `EqService`, a
 foreground service (`specialUse`), holds them while the mode is on and the equalizer is enabled.
-`AppContainer` starts it when both become true; it stops itself 10 s after either becomes false.
-Its notification shows where the effect is attached and has an off button. `BootReceiver` starts
+`AppContainer` starts it when both become true; it stops itself 10 s after either becomes false
+(and no preset is assigned to an output, see below). Its notification shows the current preset,
+where the effect is attached and the output, and has an off button. `BootReceiver` starts
 it after a reboot or an app update. The status card lists each attachment, the layout, and warns
 when SoundPower's own effect is registered too (both would apply the settings).
 
 Tested on a moto g35 5G (Android 15, no root, Dolby DAP present): the instance attaches to
 session 0 on the Bluetooth output and comes back after an app update.
+
+## Presets and outputs
+
+**Presets.** A `Preset` is a name and an `EqProfile` (graphic or parametric bands, preamp, auto-
+preamp, bass and treble). There are three kinds: 18 built-in ten-band presets, the 8850 AutoEQ
+results bundled with the app, and the user's own, kept by `PresetStore` in `presets.json` with
+their output assignments. Applying a graphic preset keeps the current band layout and resamples
+its gains onto it; applying a parametric one keeps the graphic bands. `AudioSettings.presetId`
+records where the EQ came from. The user's presets follow the edits (autosave, 400 ms after the
+last change, and at once when another preset is applied) unless they are locked; built-in, AutoEQ
+and locked presets are shown as changed instead. The preset file format is
+`{"format": "soundpower-presets", "version": 1, "presets": [...]}`; importing one, or an AutoEQ or
+Equalizer APO `ParametricEQ.txt` or `GraphicEQ.txt`, adds user presets with names that do not
+collide. Sharing writes the file to the app's cache and offers it through a `FileProvider`.
+
+**AutoEQ.** `tools/autoeq/build_db.py` turns an AutoEq checkout (MIT, see
+[third_party](../third_party/README.md)) into `app/src/main/assets/autoeq.tsv`: one line per
+result with its name, the source and rig of the measurement, whether AutoEq recommends it, and the
+parametric filters. `AutoEqIndex` loads it in the background at start (about 1.6 MB). The search
+needs every word of the query in the name, ignoring case and punctuation, and puts names where the
+query starts at a word first. `match()` guesses the headphones from what a device calls itself,
+after dropping a bracketed suffix and the `LE-` of Bluetooth LE audio.
+
+**Outputs.** `OutputMonitor` follows where media plays: `getAudioDevicesForAttributes(USAGE_MEDIA)`
+on Android 13 and newer, else the connected outputs ranked Bluetooth, USB, wired, speaker; an
+`AudioDeviceCallback` re-reads it 0, 300 and 1200 ms after a change, while the route settles. An
+`OutputKey` is the kind (speaker, wired, Bluetooth, USB, other) plus, for Bluetooth and USB, the
+device (its address, or the USB product name). A preset can be assigned to a kind ("any Bluetooth
+device") or to a named device; the device's own assignment wins. When the output changes (compared
+with the last one recorded, so a restart does not re-apply), `PresetRepository` applies the
+preset assigned to it. While switching by output is on and something is assigned, `EqService`
+runs in both modes, so the switch also happens with the app closed. Headphones with no assignment
+of their own and an AutoEQ match get a suggestion: a card on the equalizer page and, when the app
+is not visible, a notification that opens the preset list on the matching results.
+
+**Backup.** `SettingsBackup` (`"format": "soundpower-settings"`) holds the audio settings and the
+whole preset library. Importing one replaces both, after a confirmation.
 
 ## Repository layout
 
@@ -300,7 +340,8 @@ soundpower/
 ├── protocol/            # UUIDs, parameter IDs, payload layouts (C header) + golden test vectors
 ├── dsp-core/            # include/sp/dsp, src, tests (GoogleTest), bench, cli (sp-cli)
 ├── effect-lib/          # Android effect wrapper (libsoundpower.so), tests, fuzzer
-├── tools/               # sp-xmlpatch (effects-XML patcher, static for the device), sp-tone (test player)
+├── tools/               # sp-xmlpatch (effects-XML patcher, static for the device), sp-tone (test player),
+│                        # autoeq/build_db.py (the bundled AutoEQ database)
 ├── magisk-module/       # module template (scripts, SELinux rules), host script tests, build.sh
 ├── scripts/             # adb-exec.sh (runs cross-compiled tests on a device), device-test.sh
 ├── app/, android-core/  # the Android app and its Kotlin modules; Gradle root is the repository root
