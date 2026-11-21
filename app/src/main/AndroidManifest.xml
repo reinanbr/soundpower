@@ -42,6 +42,16 @@
                 android:value="System-wide equalizer: keeps the audio effect this app attached to the output alive, and applies the preset assigned to an audio output when music moves to it" />
         </service>
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_files" />
+        </provider>
+
         <receiver
             android:name=".engine.BootReceiver"
             android:exported="false">

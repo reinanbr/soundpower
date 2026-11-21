@@ -59,7 +59,6 @@
     <string name="eq_preamp">Preamp</string>
     <string name="eq_auto_preamp">Auto preamp</string>
     <!-- Equalizer -->
-    <string name="eq_title">Equalizer</string>
     <string name="eq_switch">Equalizer on</string>
     <string name="eq_mode_graphic">Graphic</string>
     <string name="eq_mode_parametric">Parametric</string>
@@ -282,5 +281,84 @@
     <string name="output_this_device">%1$s playing now</string>
 
     <!-- Presets. -->
+    <string name="menu_presets">Presets</string>
+    <string name="presets_title">Presets</string>
+    <string name="presets_search">Search presets and headphones</string>
+    <string name="presets_all">All</string>
+    <string name="presets_yours">Yours</string>
+    <string name="presets_built_in">Built-in</string>
+    <string name="presets_autoeq">AutoEQ</string>
+    <string name="presets_assigned">Assigned</string>
+    <string name="presets_suggested">For %1$s</string>
+    <string name="presets_yours_empty">Nothing saved yet. Save the current settings with the bookmark on the equalizer.</string>
+    <string name="presets_autoeq_hint">Measured headphone corrections. The source and rig are under each name.</string>
+    <string name="presets_autoeq_none">No headphones match.</string>
+    <string name="presets_none_match">Nothing matches.</string>
+    <string name="presets_autoeq_more">Showing %1$d of %2$d. Search or pick the AutoEQ filter to see more.</string>
+    <string name="presets_import">Import</string>
+    <string name="presets_export_yours">Export your presets</string>
+    <plurals name="presets_imported">
+        <item quantity="one">Imported %1$d preset</item>
+        <item quantity="other">Imported %1$d presets</item>
+    </plurals>
+    <string name="presets_import_failed">Could not import: %1$s</string>
+    <string name="presets_switch_by_output">Switch by output</string>
+    <string name="presets_switch_by_output_hint">Apply the preset assigned to a speaker, headphones or device when it starts playing.</string>
+    <string name="presets_suggest_autoeq">Suggest AutoEQ profiles</string>
+    <string name="presets_suggest_autoeq_hint">When headphones connect, offer the corrections measured for them.</string>
+    <plurals name="presets_count_yours">
+        <item quantity="one">%1$d of yours</item>
+        <item quantity="other">%1$d of yours</item>
+    </plurals>
+    <plurals name="presets_count_assigned">
+        <item quantity="one">%1$d output assigned</item>
+        <item quantity="other">%1$d outputs assigned</item>
+    </plurals>
+    <plurals name="preset_parametric_bands">
+        <item quantity="one">Parametric, %1$d band</item>
+        <item quantity="other">Parametric, %1$d bands</item>
+    </plurals>
     <string name="preset_none">No preset</string>
+    <string name="preset_default_name">My preset</string>
+    <string name="preset_edited">Changed</string>
+    <string name="preset_current">Current</string>
+    <string name="preset_locked">Locked</string>
+    <string name="preset_save">Save as preset</string>
+    <string name="preset_save_title">Save preset</string>
+    <string name="preset_name">Name</string>
+    <string name="preset_use_on">Use on</string>
+    <string name="preset_use_on_hint">A preset for a named device wins over one for its kind of output.</string>
+    <string name="preset_saved">Saved “%1$s”</string>
+    <string name="preset_copied">Copied as “%1$s”</string>
+    <string name="preset_deleted">Deleted “%1$s”</string>
+    <string name="preset_rename">Rename</string>
+    <string name="preset_lock">Lock</string>
+    <string name="preset_unlock">Unlock</string>
+    <string name="preset_assign">Use on outputs…</string>
+    <string name="preset_assign_title">Use “%1$s” on</string>
+    <string name="preset_duplicate">Duplicate</string>
+    <string name="preset_copy">Copy to yours</string>
+    <string name="preset_share">Share</string>
+    <string name="preset_export">Export</string>
+    <string name="preset_delete">Delete</string>
+    <string name="file_read_failed">Could not read the file.</string>
+    <string name="file_write_failed">Could not write the file.</string>
+
+    <!-- Settings backup. -->
+    <string name="settings_export">Export settings</string>
+    <string name="settings_export_hint">The equalizer, your presets and their outputs, in one file.</string>
+    <string name="settings_exported">Settings exported</string>
+    <string name="settings_file_name" translatable="false">soundpower-settings.json</string>
+    <string name="settings_import">Import settings</string>
+    <string name="settings_import_hint">From a file exported here.</string>
+    <string name="settings_import_confirm_title">Replace your settings?</string>
+    <string name="settings_import_confirm">The equalizer, your presets and their outputs are replaced by the file\'s.</string>
+    <string name="settings_import_replace">Replace</string>
+    <string name="settings_restored">Settings imported</string>
+
+    <string name="action_save">Save</string>
+    <string name="action_dismiss">Dismiss</string>
+    <string name="action_more">More</string>
+    <string name="action_clear">Clear</string>
+    <string name="about_autoeq">Headphone corrections from AutoEq by Jaakko Pasanen, under the MIT license.</string>
 </resources>

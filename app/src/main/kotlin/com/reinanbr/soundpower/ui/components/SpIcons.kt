@@ -191,4 +191,112 @@ object SpIcons {
             reflectiveCurveTo(19f, 6f, 21f, 12f)
         }
     }
+
+    /** A tick: the current preset. */
+    val Check: ImageVector by lazy {
+        lineIcon("check") {
+            moveTo(5f, 12.5f)
+            lineTo(10f, 17.5f)
+            lineTo(19f, 7f)
+        }
+    }
+
+    val Search: ImageVector by lazy {
+        lineIcon("search") {
+            moveTo(4f, 10.5f)
+            arcToRelative(6.5f, 6.5f, 0f, true, true, 13f, 0f)
+            arcToRelative(6.5f, 6.5f, 0f, true, true, -13f, 0f)
+            moveTo(15.5f, 15.5f)
+            lineTo(20f, 20f)
+        }
+    }
+
+    /** Three dots: more actions. */
+    val More: ImageVector by lazy {
+        icon("more") {
+            dot(12f, 5f, 2f)
+            dot(12f, 12f, 2f)
+            dot(12f, 19f, 2f)
+        }
+    }
+
+    /** Opens a list below. */
+    val ExpandMore: ImageVector by lazy {
+        lineIcon("expand-more") {
+            moveTo(6f, 9f)
+            lineTo(12f, 15f)
+            lineTo(18f, 9f)
+        }
+    }
+
+    /** A bookmark: save the preset. */
+    val Save: ImageVector by lazy {
+        lineIcon("save") {
+            moveTo(6f, 4f)
+            lineTo(18f, 4f)
+            lineTo(18f, 20f)
+            lineTo(12f, 15.5f)
+            lineTo(6f, 20f)
+            close()
+        }
+    }
+
+    /** An arrow into a tray. */
+    val Import: ImageVector by lazy {
+        lineIcon("import") {
+            moveTo(12f, 4f)
+            lineTo(12f, 15f)
+            moveTo(7f, 10f)
+            lineTo(12f, 15f)
+            lineTo(17f, 10f)
+            moveTo(4f, 15f)
+            lineTo(4f, 20f)
+            lineTo(20f, 20f)
+            lineTo(20f, 15f)
+        }
+    }
+
+    /** An arrow out of a tray. */
+    val Share: ImageVector by lazy {
+        lineIcon("share") {
+            moveTo(12f, 15f)
+            lineTo(12f, 4f)
+            moveTo(7f, 9f)
+            lineTo(12f, 4f)
+            lineTo(17f, 9f)
+            moveTo(4f, 15f)
+            lineTo(4f, 20f)
+            lineTo(20f, 20f)
+            lineTo(20f, 15f)
+        }
+    }
+
+    val Close: ImageVector by lazy {
+        lineIcon("close") {
+            moveTo(6f, 6f)
+            lineTo(18f, 18f)
+            moveTo(18f, 6f)
+            lineTo(6f, 18f)
+        }
+    }
+
+    /** Over-ear headphones: AutoEQ suggestions. */
+    val Headphones: ImageVector by lazy {
+        lineIcon("headphones") {
+            moveTo(4f, 17f)
+            lineTo(4f, 12f)
+            arcToRelative(8f, 8f, 0f, false, true, 16f, 0f)
+            lineTo(20f, 17f)
+            moveTo(4f, 14f)
+            lineTo(7f, 14f)
+            lineTo(7f, 20f)
+            lineTo(4f, 20f)
+            close()
+            moveTo(20f, 14f)
+            lineTo(17f, 14f)
+            lineTo(17f, 20f)
+            lineTo(20f, 20f)
+            close()
+        }
+    }
 }

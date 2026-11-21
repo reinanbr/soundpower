@@ -50,12 +50,15 @@ import com.reinanbr.soundpower.ui.components.Section
 import com.reinanbr.soundpower.ui.components.SpIcons
 import com.reinanbr.soundpower.ui.components.formatHz
 import com.reinanbr.soundpower.ui.prefs.ThemeMode
+import com.reinanbr.soundpower.ui.presets.PresetsMenuSection
+import com.reinanbr.soundpower.ui.presets.PresetsUiState
+import com.reinanbr.soundpower.ui.presets.PresetsViewModel
 import kotlin.math.roundToInt
 
-/** Band configuration, setup, the live status, the theme and the app's version. */
+/** Band configuration, presets, setup, the live status, the theme and the app's version. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun MenuPage(state: EqUiState, theme: ThemeMode, vm: EqViewModel, actions: EqActions) {
+internal fun MenuPage(state: EqUiState, theme: ThemeMode, vm: EqViewModel, actions: EqActions, presets: PresetsUiState, presetsVm: PresetsViewModel) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(stringResource(R.string.app_name)) },
@@ -89,6 +92,7 @@ internal fun MenuPage(state: EqUiState, theme: ThemeMode, vm: EqViewModel, actio
                     MenuRow(stringResource(R.string.eq_setup_status), stringResource(R.string.menu_setup_summary), onClick = actions.openSetup)
                 }
             }
+            PresetsMenuSection(presets, presetsVm, onOpenPresets = { actions.openPresets(null) }, onMessage = actions.showMessage)
             EngineSection(state, vm, actions)
             StatusSection(state.status, state.rootless, vm)
             Section(stringResource(R.string.menu_look)) {
@@ -111,6 +115,11 @@ internal fun MenuPage(state: EqUiState, theme: ThemeMode, vm: EqViewModel, actio
                 Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     stringResource(R.string.about_license),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(R.string.about_autoeq),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

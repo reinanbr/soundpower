@@ -51,6 +51,8 @@ internal fun EqToolScreen(
 ) {
     val title = when (tool) {
         EqTool.BANDS -> R.string.tool_bands
+        // Shown by PresetsScreen, never here.
+        EqTool.PRESETS -> R.string.presets_title
     }
     Scaffold(
         modifier = modifier,
@@ -73,6 +75,7 @@ internal fun EqToolScreen(
             val s = state.settings ?: return@Column
             when (tool) {
                 EqTool.BANDS -> BandsTool(s, vm, onRequestValue)
+                EqTool.PRESETS -> {}
             }
         }
     }

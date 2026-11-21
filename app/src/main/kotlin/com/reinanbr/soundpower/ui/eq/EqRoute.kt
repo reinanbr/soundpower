@@ -25,6 +25,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,12 +35,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reinanbr.soundpower.R
+import com.reinanbr.soundpower.SoundPowerApplication
+import com.reinanbr.soundpower.ui.presets.MessageEffect
+import com.reinanbr.soundpower.ui.presets.PresetsScreen
+import com.reinanbr.soundpower.ui.presets.PresetsUiState
+import com.reinanbr.soundpower.ui.presets.PresetsViewModel
+import com.reinanbr.soundpower.ui.presets.SavePresetDialog
+import com.reinanbr.soundpower.ui.presets.outputOptions
 import com.reinanbr.soundpower.ui.components.SpIcons
 import com.reinanbr.soundpower.ui.components.ValueDialog
 import com.reinanbr.soundpower.ui.components.ValueRequest
@@ -55,8 +64,8 @@ enum class EqTab(val label: Int, val icon: ImageVector) {
     MENU(R.string.tab_menu, SpIcons.Menu),
 }
 
-/** Screens opened on top of the pages, from the menu. */
-enum class EqTool { BANDS }
+/** Screens opened on top of the pages. */
+enum class EqTool { BANDS, PRESETS }
 
 /** Everything the pages can ask of the shell. */
 internal class EqActions(
@@ -65,6 +74,10 @@ internal class EqActions(
     val openTool: (EqTool) -> Unit,
     val openSetup: () -> Unit,
     val changeEngine: () -> Unit,
+    /** The preset list, with a search if given. */
+    val openPresets: (String?) -> Unit,
+    val savePreset: () -> Unit,
+    val showMessage: (String) -> Unit,
 )
 
 /** The equalizer, its effects and menu; [onOpenSetup] and [onChangeEngine] leave for the setup screens. */
@@ -72,8 +85,11 @@ internal class EqActions(
 fun EqRoute(onOpenSetup: () -> Unit, onChangeEngine: () -> Unit, vm: EqViewModel = viewModel(factory = EqViewModel.Factory)) {
     val state by vm.state.collectAsStateWithLifecycle()
     val theme by vm.theme.collectAsStateWithLifecycle()
+    val presetsVm: PresetsViewModel = viewModel(factory = PresetsViewModel.Factory)
+    val presets by presetsVm.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(EqTab.EQUALIZER) }
     var tool by rememberSaveable { mutableStateOf<EqTool?>(null) }
+    var saving by rememberSaveable { mutableStateOf(false) }
     var request by remember { mutableStateOf<ValueRequest?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -88,6 +104,16 @@ fun EqRoute(onOpenSetup: () -> Unit, onChangeEngine: () -> Unit, vm: EqViewModel
             scope.launch { back.animateTo(0f, valueSpring()) }
             throw e
         }
+    }
+    // A search sent by an AutoEQ suggestion's notification.
+    val container = (LocalContext.current.applicationContext as SoundPowerApplication).container
+    val search by container.presetSearch.collectAsStateWithLifecycle()
+    LaunchedEffect(search) {
+        val q = search ?: return@LaunchedEffect
+        container.presetSearch.value = null
+        presetsVm.search(q)
+        back.snapTo(0f)
+        tool = EqTool.PRESETS
     }
     // Back from another page returns to the equalizer before leaving the app.
     BackHandler(enabled = tool == null && tab != EqTab.EQUALIZER) { tab = EqTab.EQUALIZER }
@@ -110,6 +136,13 @@ fun EqRoute(onOpenSetup: () -> Unit, onChangeEngine: () -> Unit, vm: EqViewModel
         },
         openSetup = onOpenSetup,
         changeEngine = onChangeEngine,
+        openPresets = { q ->
+            if (q != null) presetsVm.search(q)
+            scope.launch { back.snapTo(0f) }
+            tool = EqTool.PRESETS
+        },
+        savePreset = { saving = true },
+        showMessage = { m -> scope.launch { snackbar.showSnackbar(m) } },
     )
 
     val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
@@ -125,7 +158,19 @@ fun EqRoute(onOpenSetup: () -> Unit, onChangeEngine: () -> Unit, vm: EqViewModel
         label = "eq-screens",
     ) { t ->
         when (t) {
-            null -> Pages(tab, { tab = it }, state, theme, vm, snackbar, actions)
+            null -> Pages(tab, { tab = it }, state, theme, vm, snackbar, actions, presets, presetsVm)
+            EqTool.PRESETS -> PresetsScreen(
+                presetsVm,
+                onBack = { tool = null },
+                modifier = Modifier.graphicsLayer {
+                    val p = back.value
+                    scaleX = 1f - 0.1f * p
+                    scaleY = 1f - 0.1f * p
+                    translationX = p * 24.dp.toPx()
+                    shape = RoundedCornerShape(28.dp * p)
+                    clip = p > 0f
+                },
+            )
             else -> EqToolScreen(
                 t, state, vm,
                 onBack = { tool = null },
@@ -142,6 +187,23 @@ fun EqRoute(onOpenSetup: () -> Unit, onChangeEngine: () -> Unit, vm: EqViewModel
         }
     }
     request?.let { ValueDialog(it, onDismiss = { request = null }) }
+    if (saving) {
+        val current = presets.current?.preset
+        val lib = presets.library
+        val defaultName = when {
+            current == null -> stringResource(R.string.preset_default_name)
+            lib == null -> current.name
+            else -> lib.uniqueName(current.name)
+        }
+        SavePresetDialog(
+            initialName = defaultName,
+            options = outputOptions(presets.output, emptyList()),
+            onDismiss = { saving = false },
+        ) { name, outputs ->
+            saving = false
+            presetsVm.save(name, outputs)
+        }
+    }
 }
 
 @Composable
@@ -153,7 +215,10 @@ private fun Pages(
     vm: EqViewModel,
     snackbar: SnackbarHostState,
     actions: EqActions,
+    presets: PresetsUiState,
+    presetsVm: PresetsViewModel,
 ) {
+    MessageEffect(presetsVm, snackbar)
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
@@ -183,9 +248,9 @@ private fun Pages(
             label = "eq-pages",
         ) { page ->
             when (page) {
-                EqTab.EQUALIZER -> EqPage(state, vm, actions)
+                EqTab.EQUALIZER -> EqPage(state, vm, actions, presets, presetsVm)
                 EqTab.EFFECTS -> EffectsPage(state, vm, actions)
-                EqTab.MENU -> MenuPage(state, theme, vm, actions)
+                EqTab.MENU -> MenuPage(state, theme, vm, actions, presets, presetsVm)
             }
         }
     }

@@ -48,6 +48,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.reinanbr.soundpower.R
+import com.reinanbr.soundpower.ui.presets.PresetTitle
+import com.reinanbr.soundpower.ui.presets.PresetsUiState
+import com.reinanbr.soundpower.ui.presets.PresetsViewModel
+import com.reinanbr.soundpower.ui.presets.SuggestionBanner
 import com.reinanbr.soundpower.model.AudioSettings
 import com.reinanbr.soundpower.model.EqMode
 import com.reinanbr.soundpower.model.Ranges
@@ -66,14 +70,17 @@ import kotlin.math.ln
 /** The equalizer page: switches, mode, the bands of the current mode, bass and treble. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun EqPage(state: EqUiState, vm: EqViewModel, actions: EqActions) {
+internal fun EqPage(state: EqUiState, vm: EqViewModel, actions: EqActions, presets: PresetsUiState, presetsVm: PresetsViewModel) {
     val settings = state.settings
     val on = settings?.enabled ?: true
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text(stringResource(R.string.eq_title)) },
+            title = { PresetTitle(presets.current) { actions.openPresets(null) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             actions = {
+                IconButton(onClick = actions.savePreset, enabled = settings != null && presets.library != null) {
+                    Icon(SpIcons.Save, stringResource(R.string.preset_save))
+                }
                 IconButton(onClick = actions.reset, enabled = settings != null) {
                     Icon(SpIcons.Reset, stringResource(R.string.eq_reset_all))
                 }
@@ -101,6 +108,9 @@ internal fun EqPage(state: EqUiState, vm: EqViewModel, actions: EqActions) {
             Column {
                 ErrorLines(state, vm::retry)
                 ModeSelector(settings.eq.mode, vm::setMode)
+            }
+            presets.suggestion?.let { s ->
+                SuggestionBanner(s, onShow = { actions.openPresets(null) }, onDismiss = { presetsVm.dismissSuggestion(s.output.key) })
             }
             QuickToggles(settings, state.curve?.effectivePreampDb, on, vm)
             val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
