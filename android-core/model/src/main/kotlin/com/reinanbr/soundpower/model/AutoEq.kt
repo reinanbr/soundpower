@@ -143,17 +143,32 @@ object AutoEq {
 /** Search over the AutoEQ database, and the headphones a device name probably is. */
 class AutoEqIndex(val entries: List<AutoEqEntry>) {
     private val keys = entries.map { key(it.name) }
+    private val byId = entries.associateBy { it.id }
+
+    /** The entry whose preset has [id] ([AutoEqEntry.id]). */
+    fun find(id: String): AutoEqEntry? = byId[id]
 
     /** Recommended results first, then by name. */
     private val order = Comparator<Int> { a, b ->
         compareValuesBy(entries[a], entries[b], { !it.recommended }, { it.name.lowercase() }, { it.source })
     }
 
-    /** Entries whose name contains every word of [query], ignoring case, spaces and punctuation. */
+    /**
+     * Entries whose name contains every word of [query], ignoring case, spaces and punctuation.
+     * Names where the query starts at a word come first ("hd 600" and "hd600" find "HD 600"
+     * before "AH-D600"), then those with more of its words at a word start; ties go by [order].
+     */
     fun search(query: String, limit: Int = Int.MAX_VALUE): List<AutoEqEntry> {
-        val words = query.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+        val words = words(query)
         if (words.isEmpty()) return emptyList()
-        return entries.indices.filter { i -> words.all { keys[i].contains(it) } }.sortedWith(order).take(limit).map { entries[it] }
+        val joined = words.joinToString("")
+        val hits = entries.indices.filter { i -> words.all { keys[i].contains(it) } }
+        val score = hits.associateWith { i ->
+            val tokens = words(entries[i].name)
+            val phrase = tokens.indices.any { j -> tokens.subList(j, tokens.size).joinToString("").startsWith(joined) }
+            if (phrase) words.size + 1 else words.count { w -> tokens.any { it.startsWith(w) } }
+        }
+        return hits.sortedWith(compareByDescending<Int> { score.getValue(it) }.then(order)).take(limit).map { entries[it] }
     }
 
     /**
@@ -179,5 +194,9 @@ class AutoEqIndex(val entries: List<AutoEqEntry>) {
         private val BRACKETED = Regex("""\([^)]*\)|\[[^]]*]""")
 
         internal fun key(name: String): String = name.lowercase().filter { it.isLetterOrDigit() }
+
+        private val SEPARATORS = Regex("[^\\p{L}\\p{N}]+")
+
+        private fun words(text: String): List<String> = text.lowercase().split(SEPARATORS).filter { it.isNotEmpty() }
     }
 }

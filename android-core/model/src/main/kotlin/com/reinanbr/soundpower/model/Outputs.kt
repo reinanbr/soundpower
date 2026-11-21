@@ -38,6 +38,11 @@ data class PresetLibrary(
     val assignments: List<Assignment> = emptyList(),
     val switchByOutput: Boolean = true,
     val suggestAutoEq: Boolean = true,
+    /**
+     * The output the last switch was decided on: presets switch when music moves to another
+     * output, not when the app starts again on the same one.
+     */
+    val lastOutput: OutputKey? = null,
 ) {
     fun preset(id: String?): Preset? = presets.firstOrNull { it.id == id }
 

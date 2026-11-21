@@ -85,6 +85,14 @@ class AutoEqTest {
     )
 
     @Test
+    fun searchRanksNamesWhereTheQueryStartsAWord() {
+        val hd = AutoEqIndex(listOf(entry("Denon AH-D600"), entry("Sennheiser HD 600"), entry("Sennheiser HD600 Custom", recommended = false)))
+        assertEquals(listOf("Sennheiser HD 600", "Sennheiser HD600 Custom", "Denon AH-D600"), hd.search("hd 600").map { it.name })
+        assertEquals(listOf("Sennheiser HD 600", "Sennheiser HD600 Custom", "Denon AH-D600"), hd.search("HD600").map { it.name })
+        assertEquals(listOf("Denon AH-D600"), hd.search("denon").map { it.name })
+    }
+
+    @Test
     fun searchMatchesEveryWordAndRanksRecommendedFirst() {
         val hits = index.search("wh 1000xm4")
         assertEquals(listOf("oratory1990", "oratory1990", "Rtings"), hits.map { it.source })
@@ -93,6 +101,8 @@ class AutoEqTest {
         assertTrue(index.search("  ").isEmpty())
         assertTrue(index.search("sennheiser").isEmpty())
         assertEquals(1, index.search("sony", limit = 1).size)
+        assertEquals("Rtings", index.find("autoeq:Rtings/over-ear/Sony WH-1000XM4")?.source)
+        assertNull(index.find("autoeq:nobody/over-ear/Sony WH-1000XM4"))
     }
 
     @Test
