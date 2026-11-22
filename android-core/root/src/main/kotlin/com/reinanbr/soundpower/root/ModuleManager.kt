@@ -19,6 +19,8 @@ class ModuleManager(
         val stagedDir: String = "/data/adb/modules_update/$MODULE_ID",
         val dataDir: String = Protocol.DATA_DIR,
         val procDir: String = "/proc",
+        /** selinuxfs validates a context written here against the loaded policy. */
+        val selinuxContext: String = "/sys/fs/selinux/context",
     )
 
     suspend fun requestRoot(): Boolean = shell.requestRoot()
@@ -62,6 +64,25 @@ class ModuleManager(
     suspend fun effectDumps(): List<EffectDump>? {
         val r = shell.run("dumpsys -t 5 media.audio_flinger 2>/dev/null | grep -F 'SoundPower '; true")
         return if (r.code == ShellResult.NO_ROOT) null else EffectDump.parse(r.out)
+    }
+
+    /** All of `dumpsys media.audio_flinger`, parsed; null without root. */
+    suspend fun audioFlinger(): AudioFlingerDump? {
+        val r = shell.run("dumpsys -t 5 media.audio_flinger 2>/dev/null; true")
+        return if (r.code == ShellResult.NO_ROOT) null else withContext(io) { AudioFlingerDump.parse(r.out) }
+    }
+
+    /** What [systemScript] finds; null without root. Reads the logs, so it takes a moment. */
+    suspend fun systemCheck(): SystemCheck? {
+        val r = shell.run(systemScript())
+        return if (r.code == ShellResult.NO_ROOT) null else SystemCheck.parse(r.out)
+    }
+
+    /** The output of the module's diag.sh, for a report; null without root or without the module. */
+    suspend fun diagnosticsScript(): List<String>? {
+        val script = shQuote(paths.moduleDir + "/diag.sh")
+        val r = shell.run("[ -f $script ] && sh $script 2>&1")
+        return if (r.code == ShellResult.NO_ROOT || r.out.isEmpty()) null else r.out
     }
 
     /**
@@ -123,6 +144,36 @@ class ModuleManager(
         """.trimIndent()
     }
 
+    internal fun systemScript(): String {
+        val m = shQuote(paths.moduleDir)
+        val proc = shQuote(paths.procDir)
+        val selinux = shQuote(paths.selinuxContext)
+        // A process is found by its mapping of the library, not through lshal: after a restart
+        // of the HAL service, lshal stops showing its pid on some devices.
+        return """
+            (
+              # One grep over every maps file: a grep per process takes seconds on a busy phone.
+              grep -lF $LIBRARY $proc/[0-9]*/maps 2>/dev/null | while read -r maps; do
+                pid=${'$'}{maps%/maps}; pid=${'$'}{pid##*/}
+                svc=${'$'}(getprop | sed -n "s/^\[init\.svc_debug_pid\.\(.*\)\]: \[${'$'}pid\]${'$'}/\1/p" | head -n 1)
+                echo "loaded ${'$'}pid ${'$'}{svc:--} ${'$'}(tr '\0' ' ' <"${'$'}{maps%/maps}/cmdline" 2>/dev/null)"
+              done
+              if [ -f $m/configs.list ]; then
+                while read -r f; do
+                  [ -n "${'$'}f" ] || continue
+                  if grep -q 'name="soundpower"' "${'$'}f" 2>/dev/null; then echo "config patched ${'$'}f"; else echo "config missing ${'$'}f"; fi
+                done <$m/configs.list
+              fi
+              if { printf '%s' '$DATA_CONTEXT' >$selinux; } 2>/dev/null; then echo "policy loaded"; else echo "policy missing"; fi
+              # The kernel log and the buffers logd copies denials to; all buffers take seconds to read.
+              { dmesg 2>/dev/null; logcat -d -b main,system,kernel 2>/dev/null; } | grep 'avc: *denied' | grep -iE 'soundpower|soundfx' |
+                sed 's/.*avc: *denied/avc: denied/' | sort -u | head -n $MAX_DENIALS | sed 's/^/denial /'
+              [ -f $m/log/boot.log ] && tail -n $BOOT_LOG_LINES $m/log/boot.log | sed 's/^/boot /'
+              true
+            )
+        """.trimIndent()
+    }
+
     internal fun restartAudioScript(): String {
         val proc = shQuote(paths.procDir)
         val requested = shQuote(paths.moduleDir + "/restart-requested")
@@ -156,6 +207,8 @@ class ModuleManager(
         const val LIBRARY = "libsoundpower.so"
 
         private const val RESTART_NOT_LOADED = 3
+        private const val MAX_DENIALS = 10
+        private const val BOOT_LOG_LINES = 6
 
         /** The SELinux type the module's sepolicy.rule gives the data directory. */
         const val DATA_CONTEXT = "u:object_r:soundpower_data_file:s0"

@@ -73,6 +73,52 @@ data class ModuleState(
     }
 }
 
+/** What [ModuleManager.systemScript] finds on the device. */
+data class SystemCheck(
+    /** Processes that have the effect library mapped: the audio HAL, when the module works. */
+    val loadedIn: List<LoadedProcess> = emptyList(),
+    /** The effects configurations the module patches, and whether the patched copy is in place. */
+    val configs: Map<String, Boolean> = emptyMap(),
+    /** The loaded SELinux policy defines the data directory's type; null if not checked. */
+    val policyLoaded: Boolean? = null,
+    /** Distinct SELinux denials that mention SoundPower or soundfx. */
+    val denials: List<String> = emptyList(),
+    /** The last lines of the module's boot log (post-fs-data and the watchdog). */
+    val bootLog: List<String> = emptyList(),
+) {
+    data class LoadedProcess(val pid: Int, val service: String?, val command: String)
+
+    companion object {
+        fun parse(lines: List<String>): SystemCheck {
+            val loaded = ArrayList<LoadedProcess>()
+            val configs = LinkedHashMap<String, Boolean>()
+            var policy: Boolean? = null
+            val denials = ArrayList<String>()
+            val boot = ArrayList<String>()
+            for (raw in lines) {
+                val line = raw.trimEnd('\r')
+                val rest = line.substringAfter(' ', "")
+                when (line.substringBefore(' ')) {
+                    "loaded" -> {
+                        val parts = rest.split(' ', limit = 3)
+                        val pid = parts.getOrNull(0)?.toIntOrNull() ?: continue
+                        loaded += LoadedProcess(pid, parts.getOrNull(1)?.takeUnless { it == "-" }, parts.getOrNull(2)?.trim().orEmpty())
+                    }
+                    "config" -> {
+                        val state = rest.substringBefore(' ')
+                        val path = rest.substringAfter(' ', "")
+                        if (path.isNotEmpty() && (state == "patched" || state == "missing")) configs[path] = state == "patched"
+                    }
+                    "policy" -> policy = rest == "loaded"
+                    "denial" -> denials += rest
+                    "boot" -> boot += rest
+                }
+            }
+            return SystemCheck(loaded, configs, policy, denials, boot)
+        }
+    }
+}
+
 /** One instance, as the effect's `EFFECT_CMD_DUMP` line in `dumpsys media.audio_flinger` shows it. */
 data class EffectDump(
     val libVersion: String,

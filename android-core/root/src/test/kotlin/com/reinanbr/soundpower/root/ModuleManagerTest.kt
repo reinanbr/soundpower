@@ -150,6 +150,39 @@ class ModuleManagerTest {
         assertFalse(log.exists())
     }
 
+    @Test
+    fun checksTheSystem() = runTest {
+        process(1200, "libsoundpower.so")
+        process(1300, "libother.so")
+        File("$root/proc/1200/cmdline").writeBytes("/vendor/bin/hw/android.hardware.audio@2.0-service\u0000".toByteArray())
+        services("vendor.audio-hal-2-0" to 1200)
+        val patched = File(root, "vendor/etc/audio_effects.xml").apply { parentFile!!.mkdirs(); writeText("<effect name=\"soundpower\"/>") }
+        val stock = File(root, "odm/etc/audio_effects.xml").apply { parentFile!!.mkdirs(); writeText("<effects/>") }
+        File(paths.moduleDir).mkdirs()
+        File(paths.moduleDir, "configs.list").writeText("$patched\n$stock\n")
+        File(paths.moduleDir, "log").mkdirs()
+        File(paths.moduleDir, "log/boot.log").writeText((1..8).joinToString("") { "line $it\n" })
+        stub("dmesg", "echo '[ 12.5] audit: type=1400 avc:  denied  { read } for name=\"soundpower\" scontext=u:r:hal_audio_default:s0'")
+        stub("logcat", "echo 'I auditd: avc:  denied  { read } for name=\"soundpower\" scontext=u:r:hal_audio_default:s0'; echo 'avc: denied { open } for name=\"other\"'")
+
+        val s = manager.systemCheck()!!
+        assertEquals(listOf(SystemCheck.LoadedProcess(1200, "vendor.audio-hal-2-0", "/vendor/bin/hw/android.hardware.audio@2.0-service")), s.loadedIn)
+        assertEquals(mapOf(patched.path to true, stock.path to false), s.configs)
+        // The fake selinuxfs node is missing, so the type counts as not loaded.
+        assertEquals(false, s.policyLoaded)
+        // The same denial from the kernel log and logcat, once; unrelated ones are left out.
+        assertEquals(listOf("avc: denied  { read } for name=\"soundpower\" scontext=u:r:hal_audio_default:s0"), s.denials)
+        assertEquals((3..8).map { "line $it" }, s.bootLog)
+    }
+
+    @Test
+    fun aPolicyThatDefinesTheTypeIsReported() = runTest {
+        val node = File(root, "selinux-context").apply { createNewFile() }
+        val s = ModuleManager(shell, paths.copy(selinuxContext = node.path)).systemCheck()!!
+        assertEquals(true, s.policyLoaded)
+        assertTrue(s.loadedIn.isEmpty())
+    }
+
     /** [RootShell] on a fresh host `sh` per script, with [bin] first on PATH. */
     private class HostShell(private val bin: File) : RootShell {
         override suspend fun requestRoot() = true
