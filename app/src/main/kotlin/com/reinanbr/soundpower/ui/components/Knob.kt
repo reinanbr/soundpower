@@ -49,7 +49,7 @@ private const val SWEEP_DEG = 270f
  * A rotary control. Drag up or down to turn it (the whole range over [dragSpan]); it sticks
  * briefly at [default] with a tick. Double-tap to spring back to [default], long-press to type
  * an exact value. The arc starts at [origin] (normally [default]), so boosts and cuts read at a
- * glance.
+ * glance. Only the dial takes the gestures, so a page of knobs still scrolls from their labels.
  */
 @Composable
 fun Knob(
@@ -62,7 +62,7 @@ fun Knob(
     modifier: Modifier = Modifier,
     default: Float = 0f,
     enabled: Boolean = true,
-    size: Dp = 76.dp,
+    size: Dp = 88.dp,
     dragSpan: Dp = 220.dp,
     /** Where the value arc starts: [default] for a value either side of it, the range start for a level. */
     origin: Float = default,

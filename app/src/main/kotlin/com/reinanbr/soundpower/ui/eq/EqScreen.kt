@@ -341,12 +341,12 @@ private fun ToneKnobs(settings: AudioSettings, on: Boolean, vm: EqViewModel, onR
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         Knob(
             value = tone.bassDb, range = Ranges.TONE_DB, label = bass, valueText = formatDb(tone.bassDb),
-            onChange = vm::setBass, enabled = on && tone.enabled, modifier = Modifier.width(96.dp),
+            onChange = vm::setBass, enabled = on && tone.enabled, modifier = Modifier.width(120.dp),
             onLongPress = { onRequestValue(ValueRequest(bass, tone.bassDb, Ranges.TONE_DB, db, 1, vm::setBass)) },
         )
         Knob(
             value = tone.trebleDb, range = Ranges.TONE_DB, label = treble, valueText = formatDb(tone.trebleDb),
-            onChange = vm::setTreble, enabled = on && tone.enabled, modifier = Modifier.width(96.dp),
+            onChange = vm::setTreble, enabled = on && tone.enabled, modifier = Modifier.width(120.dp),
             onLongPress = { onRequestValue(ValueRequest(treble, tone.trebleDb, Ranges.TONE_DB, db, 1, vm::setTreble)) },
         )
     }

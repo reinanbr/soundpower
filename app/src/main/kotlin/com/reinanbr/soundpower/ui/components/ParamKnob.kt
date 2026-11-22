@@ -33,7 +33,7 @@ fun ParamKnob(
     origin: Float = default,
     scale: Scale = Scale.LINEAR,
     enabled: Boolean = true,
-    size: Dp = 68.dp,
+    size: Dp = 80.dp,
     accent: Color? = null,
 ) {
     if (scale == Scale.LINEAR) {
@@ -65,7 +65,7 @@ fun ParamKnob(
  * knobs line up from row to row. Each knob gets the modifier of its cell.
  */
 @Composable
-fun KnobGrid(vararg knobs: @Composable (Modifier) -> Unit, modifier: Modifier = Modifier, minCell: Dp = 84.dp) {
+fun KnobGrid(vararg knobs: @Composable (Modifier) -> Unit, modifier: Modifier = Modifier, minCell: Dp = 96.dp) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val columns = max(1, (maxWidth / minCell).toInt()).coerceAtMost(knobs.size.coerceAtLeast(1))
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

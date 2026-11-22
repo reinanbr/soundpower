@@ -471,4 +471,4 @@ private fun ChannelSelector(
 
 private val CARD_WIDTH = 232.dp
 private val CARD_HEIGHT = 228.dp
-private val KNOB_SIZE = 56.dp
+private val KNOB_SIZE = 72.dp
