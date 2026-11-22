@@ -89,8 +89,9 @@ loudness compensation, a multiband compressor and crossfeed in between.
   compressor, so dynamics do not depend on the volume and the limiter sees the real output level.
   It also gives back auto-preamp's attenuation up to where the volume leaves room
   (`v · min(cut, 1 / v_max)`), so large boosts are heard in full at every volume below the one
-  where they would clip. The dry path gets the plain volume. See the
-  [protocol](protocol.md#direct-volume-control-12) for the framework side.
+  where they would clip. The dry path gets the plain volume. A session left out of direct
+  volume control gets the volume at the chain's input instead, as the mixer would apply it. See
+  the [protocol](protocol.md#direct-volume-control-12) for the framework side.
 
 - **A/B bypass** crossfades (~20 ms) between the processed signal and a **latency-aligned dry path**. The
   dry signal is delayed by the limiter lookahead, so the crossfade never comb-filters.
@@ -274,6 +275,15 @@ watchdog does not count the restart. The app writes `state.bin` before the resta
 settings again once the new control instance answers. While it is on, the card lists each playing
 stream's volume from the dump lines, and whether SoundPower or the mixer applies it (the mixer does
 when another effect later in the chain also controls the volume).
+
+**Per player.** On the players screen each player has a *Direct volume* chip while direct volume
+control is on. The choice is kept with the known players (`KnownPlayer.directVolume`).
+`DirectVolumeSessions` follows the sessions of the players left out (the tracker's root dump) and
+sends them as `INPUT_VOLUME_SESSIONS` (protocol 1.3), whose sessions get the volume at the
+chain's input; `EffectController` sends the list again on each new connection, empty when nobody
+is left out, because the list outlives the app in the audio server. While a player is left out the
+service runs, so the list follows new sessions with the app in the background. A module older
+than 1.3 shows a hint to update it instead of the chips.
 
 ## Diagnostics
 

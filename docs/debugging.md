@@ -77,7 +77,7 @@ and a media stream gets an instance (from `dumpsys media.audio_flinger`):
 ```
 SoundPower 0.2.0 (protocol 1.2): session 94321 io 13, active, 48000 Hz, 2 ch, format 0x5,
 cpu avg 10.88% peak 15.93%, limiter 0.00 dB, 112320 frames, flags 0x18, 1 instances,
-volume -14.4/-14.4 dB applied (stage -14.4 dB), peak in -40.0 out -66.2 dBFS
+volume -14.4/-14.4 dB applied (stage -14.4 dB), peak in -40.0 out -66.2 dBFS, volume stage output
 ```
 
 `flags` are the `STATUS` flags: bit 0 master bypass, bit 1 duplicate session, bit 2 non-finite
@@ -85,7 +85,9 @@ input, bit 3 direct volume control claimed, bit 4 a stream's volume applied by S
 `volume` part (since 1.2) is the last stream volume per channel, `applied` when SoundPower applies
 it (direct volume control) or `by mixer` when the mixer already did, and the gain of the chain's
 volume stage. `peak in` / `out` are the largest input and output samples since the previous
-dump (`-999.0` for silence). With direct volume control, `peak in` does not move with the
+dump (`-999.0` for silence). `volume stage` (since 1.3) is `input` for a session left out of
+direct volume control (its player's "Direct volume" chip is off in the app's players screen), and
+`output` otherwise. With direct volume control, `peak in` does not move with the
 volume: the mixer feeds the chain at full scale. The effect reads `state.bin` whenever an instance is created
 and the file has changed (inode, size or modification time), so a new file takes effect at the
 next stream start; `logcat -s SoundPower` shows `loaded /data/vendor/soundpower/state.bin: N
