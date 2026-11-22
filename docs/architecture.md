@@ -7,7 +7,7 @@ SoundPower has four parts, built and tested independently:
 | `dsp-core` | C++20 | anywhere (desktop for tests) | All signal processing. No Android dependencies. |
 | `effect-lib` | C++20 | the audio HAL process on the device | Exposes `dsp-core` as an Android audio effect (`libsoundpower.so`). |
 | `magisk-module` | shell + a small native tool | install time / boot | Installs the library and patches the device's effects configuration systemlessly. |
-| `app` | Kotlin, Jetpack Compose | user space | Setup (root, Magisk, module install, checks) and the EQ. Presets, per-device profiles and diagnostics come in later phases. |
+| `app` | Kotlin, Jetpack Compose | user space | Setup (root, Magisk, module install, checks), the EQ and its tools, presets and outputs, diagnostics. |
 
 ```
  Kotlin app (MVVM)                         audio HAL process (hal_audio_server domain)
@@ -209,10 +209,10 @@ Gradle modules; the Gradle root is the repository root.
 | `android-core:protocol` | JVM | Kotlin mirror of `protocol.h`: payload codecs and the `state.bin` format. Its tests read `protocol/vectors/*.hex` and must produce the same bytes as the C++ side. |
 | `android-core:model` | JVM | `AudioSettings` (what the app stores: graphic layouts and gains, parametric bands with type, channel, colour and lock, tone, stereo and dynamics, as JSON), `EqSettings` (the protocol payloads derived from it, minus what the connected effect's capabilities do not list), and `ResponseCurve`, which computes the curve per channel and auto-preamp exactly like the C++ core (checked against `sp-cli response` output). Presets (`Preset`, `BuiltInPresets`, the `PresetFile` JSON format), AutoEQ files and the bundled database (`AutoEq`, `AutoEqIndex`), outputs and assignments (`OutputKey`, `PresetLibrary`), and the settings backup (`SettingsBackup`). |
 | `android-core:data` | JVM | DataStore of `AudioSettings` as JSON, with a one-time import of the first version's store; `PresetStore`, the DataStore of the `PresetLibrary`. |
-| `android-core:root` | Android | `RootShell` (libsu) and `ModuleManager`: Magisk version, module state, `magisk --install-module`, reboot, the state-file write, `dumpsys` parsing. Its tests run the shell scripts in the host's `sh` against a temporary tree. |
+| `android-core:root` | Android | `RootShell` (libsu) and `ModuleManager`: Magisk version, module state, `magisk --install-module`, reboot, the state-file write, the audio restart, the system check, `dumpsys` parsing (`AudioFlingerDump`). Its tests run the shell scripts in the host's `sh` against a temporary tree, and parse real `dumpsys media.audio_flinger` output from Android 12 and 15. |
 | `android-core:effect` | Android | `EffectController` and its `AudioEffect` transport (HiddenApiBypass). |
 | `android-core:rootless` | Android | `RootlessEngine`: the mode without root, on Android's `DynamicsProcessing` effect (`DynamicsEffect` wraps it so the engine is tested on the JVM). The plan it applies (`SpectralLayout`, `DynamicsPlan`) lives in `android-core:model`. |
-| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, `PresetRepository` and `OutputMonitor` (presets and outputs), `EqService` and `BootReceiver` (the background service), and `AppContainer` (dependency injection by hand). |
+| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, `PresetRepository` and `OutputMonitor` (presets and outputs), `DiagnosticsRepository` and `Diagnosis` (diagnostics), `EqService` and `BootReceiver` (the background service), and `AppContainer` (dependency injection by hand). |
 
 **Control path.** `EffectController` creates an `AudioEffect` with SoundPower's type and
 implementation UUIDs on a session from `generateAudioSessionId()`. That constructor and
@@ -243,7 +243,7 @@ band with type, channel, colour, lock and knobs for frequency, gain and Q. *Tone
 knobs for bass and treble with their frequencies, balance and width (plus mono), the compressor,
 the limiter and, in the root mode, direct volume control. *Menu*: band configuration, reset, presets
 (the list, switching by output, AutoEQ suggestions, settings export and import), setup and status,
-theme, version.
+diagnostics, theme, version.
 
 **Motion.** A control under the finger follows it exactly; a value that changes on its own (reset,
 typed value, mode switch) springs to it. Dragged values stick briefly at their centre with a tick,
@@ -274,6 +274,55 @@ watchdog does not count the restart. The app writes `state.bin` before the resta
 settings again once the new control instance answers. While it is on, the card lists each playing
 stream's volume from the dump lines, and whether SoundPower or the mixer applies it (the mixer does
 when another effect later in the chain also controls the volume).
+
+## Diagnostics
+
+A screen opened from the menu's status section, or from the "cannot reach the effect" line on the
+equalizer page. `DiagnosticsRepository` reads the facts and `Diagnosis` judges them; it has no
+Android dependency and its tests build the inputs by hand.
+
+**What is read.** When the screen opens, and on *check again*: the setup check (root, Magisk, the
+module, the connection) and, as root, `ModuleManager.systemCheck()`, one script that lists the
+processes mapping `libsoundpower.so` (with their init service), whether each configuration in the
+module's `configs.list` is replaced by the patched copy, whether the policy defines
+`soundpower_data_file`, the distinct SELinux denials that mention SoundPower or `soundfx`, and the
+end of the boot log. Every two seconds while the screen is visible: the control instance's
+`STATUS` and the whole of `dumpsys media.audio_flinger` (root), or the engine's attachments in the
+mode without root.
+
+**`AudioFlingerDump`.** The parser keeps what playback needs: each output thread (io handle, type,
+rate, devices), its tracks (session, client pid, active, fast, stream type) and its effect chains
+(per session, each effect's name, implementor, UUID, enabled state, descriptor flags, owner pid,
+and SoundPower's own dump line), plus the pid-to-name tables. Columns are found by their header,
+not by position: track values are right-aligned under their header words, and Android 15 adds an
+`Internal` column to the effect table. HAL dumps print at column 0 in the middle of a thread, so
+only a new thread or a known later section ends one.
+
+**What is judged.** A *stream* is a SoundPower instance on a player's session (the app's control
+instance is left out): its players, whether a track plays, and the chain's other effects with
+their owners, before or after SoundPower, plus the effects on the whole output (session 0). The
+volume controller is the last enabled effect with `EFFECT_FLAG_VOLUME_CTRL`, as AudioFlinger picks
+it. Findings, errors first: setup steps, configurations not replaced, the library rejected by the
+effects factory or loaded by no process, the policy or denials; the equalizer off, nothing
+playing; active music tracks of other apps with no enabled instance on their session or on session
+0, because they are fast tracks, play on an output that does not mix in software (offload, direct,
+MMAP) or simply got none; other effects on a playing stream (a warning when an app attached them,
+a note for the system's own); direct volume control taken by a later effect, or waiting for an
+audio restart; output peaks above 0 dBFS with the limiter off; heavy CPU (30 % average or 90 %
+peak of the buffer time); non-finite input. Without root: attachments that failed or were taken
+over, nothing attached, the module active too, battery optimization. Findings carry an action
+where one exists (open setup, turn on, turn on the limiter, restart the audio, retry, open the
+other app's settings, battery settings).
+
+**The report.** Share, copy or save a plain-text report: the verdict and findings, the settings
+as JSON, setup, the control instance, each stream with its full chain, the players without
+SoundPower, the system check, the module's `diag.sh` output and the app's own log (an app may read
+its own log). The names of other apps come from the package manager, which sees apps with a
+launcher or `MAIN` activity (`<queries>` in the manifest).
+
+Seen on the test device: LineageOS's AudioFX attaches an equalizer, bass boost and virtualizer to
+the player's session; the virtualizer comes after SoundPower and controls the volume, so direct
+volume control has no effect there until AudioFX's effects are off.
 
 ## Mode without root
 

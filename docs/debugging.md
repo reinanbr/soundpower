@@ -14,7 +14,9 @@ and (with `--tone`) whether a SoundPower instance attaches to a media stream and
 `sp-tone` plays a quiet (−45 dBFS) 1 kHz tone for 4 seconds; build it with the `android-arm64` or
 `android-armv7` preset (`cmake --build --preset android-arm64 --target sp-tone`).
 
-On the device itself, the same information comes from the module's diagnostics script:
+The app's own diagnostics screen (menu, *Status*) shows most of this live, judges it and shares a
+report that includes everything below. On the device itself, the same information comes from the
+module's diagnostics script:
 
 ```sh
 su -c sh /data/adb/modules/soundpower/diag.sh
@@ -29,7 +31,7 @@ It also runs once at every boot; the output is in `/data/adb/modules/soundpower/
 | Which effects HAL? | `lshal -i -r -m -p \| grep IEffectsFactory` (HIDL, with bitness and binary) or `service list \| grep audio.effect` (AIDL) |
 | Which configuration did the parsers read? | The effects factory (HAL) and AudioPolicy (audioserver) may read **different** files. `strings` on `/vendor/lib*/libeffectsconfig.so` and `/system/lib*/libeffectsconfig.so` shows the file names each one looks for. |
 | Is the patched copy mounted? | `grep -c soundpower /vendor/etc/audio_effects*.xml` |
-| Is the library loaded? | `grep libsoundpower /proc/$(pidof android.hardware.audio@2.0-service)/maps` (use the HAL binary from `lshal`) |
+| Is the library loaded? | `grep -l libsoundpower /proc/[0-9]*/maps` (after a restart of the HAL service, `lshal` may stop showing its pid; the mapping is the reliable test) |
 | Is the effect attached to a stream? | `dumpsys media.audio_flinger`: each live instance prints a `SoundPower x.y.z ...: session N io M, active, ...` line (the effect's `EFFECT_CMD_DUMP`). |
 | Effect log | `logcat -s SoundPower` (instance creation, configuration, `state.bin` loading) |
 | SELinux | `dmesg \| grep avc` and `logcat -b all \| grep avc`, looking for `soundpower` or `soundfx` |
