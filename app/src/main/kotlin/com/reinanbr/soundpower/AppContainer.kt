@@ -3,9 +3,12 @@ package com.reinanbr.soundpower
 
 import android.content.Context
 import android.media.AudioManager
+import android.os.PowerManager
+import android.os.Process
 import com.reinanbr.soundpower.data.PresetStore
 import com.reinanbr.soundpower.data.SettingsStore
 import com.reinanbr.soundpower.devices.OutputMonitor
+import com.reinanbr.soundpower.diagnostics.DiagnosticsRepository
 import com.reinanbr.soundpower.effect.AudioEffectTransport
 import com.reinanbr.soundpower.effect.EffectController
 import com.reinanbr.soundpower.engine.EngineMode
@@ -110,6 +113,36 @@ class AppContainer(context: Context) {
         bundled = ModuleProp(BuildConfig.MODULE_VERSION, BuildConfig.MODULE_VERSION_CODE),
     )
 
+    val diagnostics = DiagnosticsRepository(
+        setup = setup,
+        modules = modules,
+        effect = effect,
+        eq = eq,
+        prefs = uiPrefs,
+        rootless = rootless,
+        isModuleRegistered = AudioEffectTransport::isRegistered,
+        isBatteryOptimized = {
+            app.getSystemService(PowerManager::class.java)?.let { !it.isIgnoringBatteryOptimizations(app.packageName) }
+        },
+        appLog = ::appLog,
+        ownPid = Process.myPid(),
+    )
+
+    /**
+     * The app's own recent log lines (an app may read its own log without a permission): its own
+     * tag and crashes in full, everything else from warnings up, which leaves out the graphics
+     * driver's chatter.
+     */
+    private fun appLog(): List<String> {
+        val p = ProcessBuilder(
+            "logcat", "-d", "-t", APP_LOG_LINES.toString(), "--pid", Process.myPid().toString(),
+            "*:W", "SoundPower:V", "AndroidRuntime:V",
+        )
+            .redirectErrorStream(true)
+            .start()
+        return p.inputStream.bufferedReader().use { it.readLines() }.also { p.waitFor() }
+    }
+
     /** The rate of the primary output, which the mixer (and so the global effect) runs at. */
     private fun outputSampleRate(): Int =
         app.getSystemService(AudioManager::class.java)?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
@@ -130,6 +163,7 @@ class AppContainer(context: Context) {
         /** Put there by the bundleMagiskModule task (app/build.gradle.kts). */
         const val MODULE_ASSET = "soundpower-module.zip"
         const val DEFAULT_SAMPLE_RATE = 48000
+        const val APP_LOG_LINES = 300
 
         /** Written by tools/autoeq/build_db.py. */
         const val AUTOEQ_ASSET = "autoeq.tsv"

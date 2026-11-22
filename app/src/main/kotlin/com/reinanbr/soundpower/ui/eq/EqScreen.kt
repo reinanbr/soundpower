@@ -32,6 +32,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
@@ -106,7 +107,7 @@ internal fun EqPage(state: EqUiState, vm: EqViewModel, actions: EqActions, prese
             }
             // One child for both, so the error lines take no space (and no spacing) while there are none.
             Column {
-                ErrorLines(state, vm::retry)
+                ErrorLines(state, vm::retry) { actions.openTool(EqTool.DIAGNOSTICS) }
                 ModeSelector(settings.eq.mode, vm::setMode)
             }
             presets.suggestion?.let { s ->
@@ -145,12 +146,13 @@ internal fun EqPage(state: EqUiState, vm: EqViewModel, actions: EqActions, prese
 
 /** Problems slide in and out of view instead of shifting the screen at once. */
 @Composable
-private fun ErrorLines(state: EqUiState, onRetry: () -> Unit) {
+private fun ErrorLines(state: EqUiState, onRetry: () -> Unit, onDiagnose: () -> Unit) {
     val error = MaterialTheme.colorScheme.error
     AnimatedContent(state.effectError, transitionSpec = { fadeIn().togetherWith(fadeOut()) }, label = "effect-error") { e ->
         if (e != null) {
             Row(Modifier.padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.eq_effect_error, e), Modifier.weight(1f), color = error)
+                TextButton(onClick = onDiagnose) { Text(stringResource(R.string.diag_open)) }
                 OutlinedButton(onClick = onRetry) { Text(stringResource(R.string.action_retry)) }
             }
         }

@@ -299,4 +299,58 @@ object SpIcons {
             close()
         }
     }
+
+    /** A rounded triangle with a mark: something to fix. */
+    val Alert: ImageVector by lazy {
+        lineIcon("alert", fill = { dot(12f, 16.5f, 1.3f) }) {
+            moveTo(10.3f, 4.6f)
+            lineTo(3.2f, 17f)
+            arcToRelative(2f, 2f, 0f, false, false, 1.7f, 3f)
+            lineTo(19.1f, 20f)
+            arcToRelative(2f, 2f, 0f, false, false, 1.7f, -3f)
+            lineTo(13.7f, 4.6f)
+            arcToRelative(2f, 2f, 0f, false, false, -3.4f, 0f)
+            close()
+            moveTo(12f, 9f)
+            lineTo(12f, 13f)
+        }
+    }
+
+    /** A circle with an "i": good to know. */
+    val Info: ImageVector by lazy {
+        lineIcon("info", fill = { dot(12f, 7.8f, 1.3f) }) {
+            moveTo(3f, 12f)
+            arcToRelative(9f, 9f, 0f, true, true, 18f, 0f)
+            arcToRelative(9f, 9f, 0f, true, true, -18f, 0f)
+            moveTo(12f, 11f)
+            lineTo(12f, 16.5f)
+        }
+    }
+
+    /** An open circle with an arrowhead: read again. */
+    val Refresh: ImageVector by lazy {
+        lineIcon("refresh") {
+            moveTo(19.5f, 12f)
+            arcToRelative(7.5f, 7.5f, 0f, true, true, -2.2f, -5.3f)
+            moveTo(18f, 3.5f)
+            lineTo(18f, 7.5f)
+            lineTo(14f, 7.5f)
+        }
+    }
+
+    /** Two overlapping sheets: copy. */
+    val Copy: ImageVector by lazy {
+        lineIcon("copy") {
+            moveTo(9f, 9f)
+            lineTo(19f, 9f)
+            lineTo(19f, 20f)
+            lineTo(9f, 20f)
+            close()
+            moveTo(15f, 9f)
+            lineTo(15f, 4f)
+            lineTo(5f, 4f)
+            lineTo(5f, 15f)
+            lineTo(9f, 15f)
+        }
+    }
 }

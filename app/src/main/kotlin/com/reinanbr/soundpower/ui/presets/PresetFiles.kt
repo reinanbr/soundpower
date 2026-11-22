@@ -25,8 +25,8 @@ internal object PresetFiles {
     /** "Rock" -> "Rock.json", without characters file systems refuse. */
     fun fileName(name: String): String = name.replace(Regex("""[^\p{L}\p{N} ._()-]"""), "_").trim().take(80).ifEmpty { "preset" } + ".json"
 
-    /** Offers [text] as a file named [fileName] to other apps; false if none can take it. */
-    suspend fun share(context: Context, fileName: String, text: String, title: String): Boolean {
+    /** Offers [text] as a file named [fileName] of [type] to other apps; false if none can take it. */
+    suspend fun share(context: Context, fileName: String, text: String, title: String, type: String = JSON): Boolean {
         val uri = withContext(Dispatchers.IO) {
             val dir = File(context.cacheDir, "shared").apply { mkdirs() }
             // Earlier shares: the receiving apps have read them by now.
@@ -36,7 +36,7 @@ internal object PresetFiles {
             FileProvider.getUriForFile(context, context.packageName + ".files", f)
         }
         val send = Intent(Intent.ACTION_SEND)
-            .setType(JSON)
+            .setType(type)
             .putExtra(Intent.EXTRA_STREAM, uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         return try {

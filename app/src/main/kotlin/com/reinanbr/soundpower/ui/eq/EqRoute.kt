@@ -43,6 +43,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reinanbr.soundpower.R
 import com.reinanbr.soundpower.SoundPowerApplication
+import com.reinanbr.soundpower.ui.diagnostics.DiagnosticsActions
+import com.reinanbr.soundpower.ui.diagnostics.DiagnosticsScreen
 import com.reinanbr.soundpower.ui.presets.MessageEffect
 import com.reinanbr.soundpower.ui.presets.PresetsScreen
 import com.reinanbr.soundpower.ui.presets.PresetsUiState
@@ -65,7 +67,7 @@ enum class EqTab(val label: Int, val icon: ImageVector) {
 }
 
 /** Screens opened on top of the pages. */
-enum class EqTool { BANDS, PRESETS }
+enum class EqTool { BANDS, PRESETS, DIAGNOSTICS }
 
 /** Everything the pages can ask of the shell. */
 internal class EqActions(
@@ -159,6 +161,17 @@ fun EqRoute(onOpenSetup: () -> Unit, onChangeEngine: () -> Unit, vm: EqViewModel
     ) { t ->
         when (t) {
             null -> Pages(tab, { tab = it }, state, theme, vm, snackbar, actions, presets, presetsVm)
+            EqTool.DIAGNOSTICS -> DiagnosticsScreen(
+                DiagnosticsActions(onBack = { tool = null }, onOpenSetup = onOpenSetup),
+                modifier = Modifier.graphicsLayer {
+                    val p = back.value
+                    scaleX = 1f - 0.1f * p
+                    scaleY = 1f - 0.1f * p
+                    translationX = p * 24.dp.toPx()
+                    shape = RoundedCornerShape(28.dp * p)
+                    clip = p > 0f
+                },
+            )
             EqTool.PRESETS -> PresetsScreen(
                 presetsVm,
                 onBack = { tool = null },

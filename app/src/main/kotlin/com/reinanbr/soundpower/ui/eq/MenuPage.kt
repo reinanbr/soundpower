@@ -94,7 +94,7 @@ internal fun MenuPage(state: EqUiState, theme: ThemeMode, vm: EqViewModel, actio
             }
             PresetsMenuSection(presets, presetsVm, onOpenPresets = { actions.openPresets(null) }, onMessage = actions.showMessage)
             EngineSection(state, vm, actions)
-            StatusSection(state.status, state.rootless, vm)
+            StatusSection(state.status, state.rootless, vm) { actions.openTool(EqTool.DIAGNOSTICS) }
             Section(stringResource(R.string.menu_look)) {
                 Text(stringResource(R.string.eq_theme), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 for ((mode, label) in listOf(
@@ -223,9 +223,10 @@ private fun RadioRow(title: String, summary: String?, selected: Boolean, onSelec
 }
 
 @Composable
-private fun StatusSection(status: EqStatus?, options: RootlessOptions, vm: EqViewModel) {
+private fun StatusSection(status: EqStatus?, options: RootlessOptions, vm: EqViewModel, onDiagnostics: () -> Unit) {
     Section(stringResource(R.string.eq_status)) {
         val dim = MaterialTheme.colorScheme.onSurfaceVariant
+        MenuRow(stringResource(R.string.diag_menu_row), stringResource(R.string.diag_menu_summary), onClick = onDiagnostics)
         if (status == null) {
             Text(stringResource(R.string.setup_checking), color = dim)
             return@Section
