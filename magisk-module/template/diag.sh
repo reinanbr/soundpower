@@ -15,13 +15,17 @@ echo "== effects HAL"
 lshal -i -r -m -p 2>/dev/null | grep 'audio\.effect@.*IEffectsFactory' | awk 'NF >= 3' # with a server command
 service list 2>/dev/null | grep -i 'audio\.effect'
 sp_pid=$(sp_effects_hal_pid)
-if [ -n "$sp_pid" ]; then
-    echo "pid $sp_pid: $(tr '\0' ' ' <"/proc/$sp_pid/cmdline")"
-    sp_maps=$(grep "$SP_LIB" "/proc/$sp_pid/maps" 2>/dev/null | awk '{ print $6 }' | sort -u)
-    echo "library: ${sp_maps:-NOT LOADED}"
-else
-    echo "effects HAL process not found"
-fi
+[ -n "$sp_pid" ] && echo "factory pid $sp_pid: $(tr '\0' ' ' 2>/dev/null <"$SP_ROOT/proc/$sp_pid/cmdline")"
+# By the library's mapping rather than through lshal, which stops showing the pid on some
+# devices once the HAL service has been restarted.
+# One grep over every maps file: a grep per process takes seconds on a busy phone.
+sp_found=$(grep -lF "$SP_LIB" "$SP_ROOT"/proc/[0-9]*/maps 2>/dev/null)
+[ -n "$sp_found" ] || echo "library: NOT LOADED by any process"
+for sp_maps in $sp_found; do
+    sp_dir=${sp_maps%/maps}
+    echo "library loaded by pid ${sp_dir##*/}: $(tr '\0' ' ' 2>/dev/null <"$sp_dir/cmdline")"
+    grep -F "$SP_LIB" "$sp_maps" | awk '{ print "  " $6 }' | sort -u
+done
 
 echo "== configurations"
 while read -r sp_dev; do

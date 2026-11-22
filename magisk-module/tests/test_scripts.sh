@@ -296,8 +296,12 @@ ok "post-fs-data: labels the data directory when preloaded" contains "$FAKE_LOG"
 ok "post-fs-data: bind-mounts the /odm copy" contains "$FAKE_LOG" "mount -o bind $moddir/bind/odm/etc/audio_effects.xml $dev/odm/etc/audio_effects.xml"
 ok "post-fs-data: logs the bind mount" contains "$moddir/log/boot.log" "bind-mounted /odm/etc/audio_effects.xml"
 
-# Watchdog: a stable HAL.
+# Watchdog: a stable HAL, which has the library mapped.
 printf '1160\n' >"$work/pids"
+mkdir -p "$dev/proc/1160" "$dev/proc/1300"
+printf '/vendor/bin/hw/android.hardware.audio@2.0-service\0' >"$dev/proc/1160/cmdline"
+printf '7000-8000 r-xp 00000000 fd:00 1 /vendor/lib/soundfx/libsoundpower.so\n' >"$dev/proc/1160/maps"
+printf '7000-8000 r-xp 00000000 fd:00 1 /system/lib/libother.so\n' >"$dev/proc/1300/maps"
 (PATH=$stubs:$PATH SP_ROOT=$dev FAKE_PIDS=$work/pids SP_WATCH_SECONDS=30 sh "$moddir/service.sh")
 ok "watchdog: stable HAL and an old crash keep the module" [ ! -f "$moddir/disable" ]
 ok "watchdog: logs the result" contains "$moddir/log/boot.log" "watchdog: no problem in 30s (0 restarts)"
@@ -305,6 +309,12 @@ ok "watchdog: writes diag.txt" contains "$moddir/log/diag.txt" "SoundPower diagn
 ok "diag: reports a mounted copy" contains "$moddir/log/diag.txt" "/vendor/etc/audio_effects.xml: patched"
 ok "diag: reports the policy type" contains "$moddir/log/diag.txt" "policy: soundpower_data_file loaded"
 ok "diag: reports a copy that is not mounted" contains "$moddir/log/diag.txt" "/odm/etc/audio_effects.xml: NOT PATCHED"
+ok "diag: finds the process that loaded the library" contains "$moddir/log/diag.txt" "library loaded by pid 1160: /vendor/bin/hw/android.hardware.audio@2.0-service"
+ok "diag: shows the mapped library" contains "$moddir/log/diag.txt" "  /vendor/lib/soundfx/libsoundpower.so"
+ok "diag: leaves other processes out" lacks "$moddir/log/diag.txt" "pid 1300"
+rm -rf "$dev/proc"
+(PATH=$stubs:$PATH SP_ROOT=$dev sh "$moddir/diag.sh") >"$work/diag-none.txt"
+ok "diag: says when no process loaded the library" contains "$work/diag-none.txt" "library: NOT LOADED by any process"
 
 # Watchdog: a HAL that keeps restarting.
 printf '1160\n1200\n1300\n1400\n' >"$work/pids"
