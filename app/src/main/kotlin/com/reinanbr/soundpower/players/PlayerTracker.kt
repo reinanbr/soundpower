@@ -123,6 +123,11 @@ class PlayerTracker(
         scope.launch { prefs.updateKnownPlayers { it.setEnabled(packageName, enabled) } }
     }
 
+    /** Root mode: whether the effect applies this player's volume itself (direct volume control). */
+    fun setDirectVolume(packageName: String, on: Boolean) {
+        scope.launch { prefs.updateKnownPlayers { it.setDirectVolume(packageName, on) } }
+    }
+
     fun forget(packageName: String) {
         scope.launch { prefs.updateKnownPlayers { it.forget(packageName) } }
     }

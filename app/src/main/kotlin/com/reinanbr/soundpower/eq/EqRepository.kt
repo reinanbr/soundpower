@@ -132,6 +132,9 @@ class EqRepository(
         }
     }
 
+    /** `PROTOCOL_INFO` capabilities of the effect last reached (root mode); null before. */
+    val capabilities: Int? get() = effect.lastCapabilities
+
     suspend fun readStatus(): EqStatus {
         if (engine.value == EngineMode.ROOTLESS) {
             return EqStatus(null, null, rootless = rootless.status.value, moduleActive = runCatching(isModuleActive).getOrDefault(false))

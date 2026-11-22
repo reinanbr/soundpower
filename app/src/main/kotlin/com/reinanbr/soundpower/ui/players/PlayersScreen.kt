@@ -25,6 +25,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -118,6 +120,11 @@ fun PlayersScreen(onBack: () -> Unit, modifier: Modifier = Modifier, vm: Players
             }
             if (!state.perPlayer) {
                 Note(stringResource(if (state.mode == EngineMode.ROOT) R.string.players_root_note else R.string.players_global_note))
+            }
+            when (state.directVolume) {
+                DirectVolumeChoice.AVAILABLE -> Note(stringResource(R.string.players_direct_volume_note))
+                DirectVolumeChoice.NEEDS_UPDATE -> Note(stringResource(R.string.players_direct_volume_update))
+                DirectVolumeChoice.NONE -> {}
             }
         }
     }
@@ -215,6 +222,20 @@ private fun PlayerRow(p: Player, state: PlayersUi, vm: PlayersViewModel) {
                 style = MaterialTheme.typography.bodySmall,
                 color = if (p.playing == true && p.equalized == false) scheme.error else scheme.onSurfaceVariant,
             )
+            if (state.directVolume == DirectVolumeChoice.AVAILABLE) {
+                val description = stringResource(R.string.players_direct_volume_description, name)
+                FilterChip(
+                    selected = p.directVolume,
+                    onClick = { vm.setDirectVolume(p.packageName, !p.directVolume) },
+                    label = { Text(stringResource(R.string.players_direct_volume)) },
+                    leadingIcon = if (p.directVolume) {
+                        { Icon(SpIcons.Check, null, Modifier.size(FilterChipDefaults.IconSize)) }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier.semantics { contentDescription = description },
+                )
+            }
         }
         if (!p.present) {
             IconButton(onClick = { vm.forget(p.packageName) }) {

@@ -16,6 +16,7 @@ import com.reinanbr.soundpower.players.PlayerTracker
 import com.reinanbr.soundpower.players.Players
 import com.reinanbr.soundpower.players.ServiceDump
 import com.reinanbr.soundpower.players.Tracking
+import com.reinanbr.soundpower.protocol.Capability
 import com.reinanbr.soundpower.rootless.RootlessEngine
 import com.reinanbr.soundpower.ui.prefs.UiPrefsStore
 import kotlinx.coroutines.Dispatchers
@@ -41,12 +42,24 @@ data class PlayersUi(
     val labels: Map<String, String> = emptyMap(),
     val grantCommand: String = "",
     val loaded: Boolean = false,
+    /** Direct volume control is on (root mode): each player can be left out of it. */
+    val directVolume: DirectVolumeChoice = DirectVolumeChoice.NONE,
 ) {
     /** The players SoundPower processes while they play: what the equalizer page names. */
     val equalizedNow: List<Player> get() = players.filter { it.present && it.equalized == true && it.playing != false }
 
     /** Players that play without SoundPower. */
     val missedNow: List<Player> get() = players.filter { it.present && it.playing == true && it.equalized == false && it.enabled }
+}
+
+/** Whether the players screen offers direct volume control per player. */
+enum class DirectVolumeChoice {
+    /** Not the root mode, or direct volume control is off. */
+    NONE,
+
+    /** The installed module is older than protocol 1.3. */
+    NEEDS_UPDATE,
+    AVAILABLE,
 }
 
 /**
@@ -59,14 +72,19 @@ class PlayersViewModel(
     rootless: RootlessEngine,
     private val packages: PackageManager,
     packageName: String,
+    /** `PROTOCOL_INFO` capabilities of the effect last reached; null before. */
+    private val capabilities: () -> Int?,
 ) : ViewModel() {
     private val labels = HashMap<String, String?>()
 
-    private val options = combine(prefs.engine, prefs.rootless, prefs.advancedTracking, prefs.rootFallback, tracker.tracking) { m, r, a, f, t ->
-        PlayersUi(mode = m, rootless = r, advanced = a, rootFallback = f, tracking = t)
-    }
+    private val options = combine(
+        combine(prefs.engine, prefs.rootless, prefs.advancedTracking, prefs.rootFallback, tracker.tracking) { m, r, a, f, t ->
+            PlayersUi(mode = m, rootless = r, advanced = a, rootFallback = f, tracking = t)
+        },
+        prefs.directVolume,
+    ) { ui, dv -> ui to dv }
 
-    val state: StateFlow<PlayersUi> = combine(options, tracker.sessions, tracker.known, tracker.dump, rootless.status) { o, sessions, known, dump, engine ->
+    val state: StateFlow<PlayersUi> = combine(options, tracker.sessions, tracker.known, tracker.dump, rootless.status) { (o, dv), sessions, known, dump, engine ->
         val everything = o.mode == EngineMode.ROOTLESS && o.rootless.scope == RootlessScope.GLOBAL &&
             engine.attachments.any { it.session == RootlessEngine.GLOBAL_SESSION && it.active }
         val equalized = when (o.mode) {
@@ -82,12 +100,19 @@ class PlayersViewModel(
             labels = labelsFor(list.map { it.packageName }),
             grantCommand = ServiceDump.grantCommand(packageName),
             loaded = true,
+            directVolume = when {
+                o.mode != EngineMode.ROOT || !dv -> DirectVolumeChoice.NONE
+                capabilities()?.let { it and Capability.INPUT_VOLUME_SESSIONS == 0 } == true -> DirectVolumeChoice.NEEDS_UPDATE
+                else -> DirectVolumeChoice.AVAILABLE
+            },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), PlayersUi())
 
     fun setEnabled(packageName: String, enabled: Boolean) = tracker.setEnabled(packageName, enabled)
 
     fun forget(packageName: String) = tracker.forget(packageName)
+
+    fun setDirectVolume(packageName: String, on: Boolean) = tracker.setDirectVolume(packageName, on)
 
     fun setAdvanced(on: Boolean) {
         viewModelScope.launch { prefs.setAdvancedTracking(on) }
@@ -129,7 +154,7 @@ class PlayersViewModel(
             initializer {
                 val app = checkNotNull(this[APPLICATION_KEY]) as SoundPowerApplication
                 val c = app.container
-                PlayersViewModel(c.players, c.uiPrefs, c.rootless, app.packageManager, app.packageName)
+                PlayersViewModel(c.players, c.uiPrefs, c.rootless, app.packageManager, app.packageName) { c.eq.capabilities }
             }
         }
     }

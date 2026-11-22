@@ -371,6 +371,8 @@
     <string name="direct_volume_needs_update">The installed module is too old for this. Update it from the setup screen.</string>
     <string name="direct_volume_waiting">Applies the volume of whatever plays next.</string>
     <string name="direct_volume_stream_applied">Session %1$d: %2$s, applied by SoundPower</string>
+    <string name="direct_volume_stream_input">Session %1$d: %2$s, applied by SoundPower before the equalizer (player left out)</string>
+    <string name="direct_volume_per_player">Choose per player</string>
     <string name="direct_volume_stream_mixer">Session %1$d: %2$s, applied by the system: another effect controls the volume here</string>
     <string name="direct_volume_left_right">L %1$s / R %2$s %3$s</string>
     <string name="direct_volume_not_loaded">No audio process has SoundPower loaded. Is the module active?</string>
@@ -582,6 +584,10 @@
     <string name="players_state_paused">Paused</string>
     <string name="players_state_equalized">Equalized</string>
     <string name="players_state_open">Audio session open</string>
+    <string name="players_direct_volume">Direct volume</string>
+    <string name="players_direct_volume_description">Direct volume control for %1$s</string>
+    <string name="players_direct_volume_note">With direct volume control, SoundPower applies each player\'s volume after its processing. Unselect “Direct volume” for a player to have its volume applied before the equalizer instead, as without direct volume control. While a player is left out, a notification shows.</string>
+    <string name="players_direct_volume_update">Update the module to choose direct volume control for each player.</string>
     <string name="players_state_off">Turned off</string>
     <string name="players_state_off_module">Turned off · the module still equalizes it</string>
     <string name="players_last_seen_now">Seen just now</string>

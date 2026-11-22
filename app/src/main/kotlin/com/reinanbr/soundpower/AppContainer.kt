@@ -17,6 +17,7 @@ import com.reinanbr.soundpower.engine.EqService
 import com.reinanbr.soundpower.eq.EqRepository
 import com.reinanbr.soundpower.model.AutoEq
 import com.reinanbr.soundpower.model.AutoEqIndex
+import com.reinanbr.soundpower.players.DirectVolumeSessions
 import com.reinanbr.soundpower.players.PlayerTracker
 import com.reinanbr.soundpower.players.ServiceDump
 import com.reinanbr.soundpower.presets.PresetRepository
@@ -78,6 +79,9 @@ class AppContainer(context: Context) {
     /** The root mode's per-session fallback, held by [EqService]. */
     val fallback = SessionInstances(AudioEffectTransport::attach)
 
+    /** Players left out of direct volume control (root mode). */
+    private val directVolumeSessions = DirectVolumeSessions(effect, players, uiPrefs)
+
     /** The output music plays on. */
     val output = OutputMonitor(app, appScope)
 
@@ -97,21 +101,24 @@ class AppContainer(context: Context) {
 
     /**
      * Whether [EqService] should run: while the equalizer is on without root, or with root and the
-     * per-session fallback (it holds the effect instances), and in either mode while presets switch
-     * by output.
+     * per-session fallback (it holds the effect instances) or a player left out of direct volume
+     * control (its sessions are followed), and in either mode while presets switch by output.
      */
     val serviceWanted: Flow<Boolean> = combine(
         uiPrefs.engine,
         eq.settings.filterNotNull().map { it.enabled },
         presets.library.filterNotNull(),
         uiPrefs.rootFallback,
-    ) { mode, on, lib, fallback ->
-        (on && (mode == EngineMode.ROOTLESS || (mode == EngineMode.ROOT && fallback))) || (lib.switchByOutput && lib.assignments.isNotEmpty())
+        directVolumeSessions.wanted,
+    ) { mode, on, lib, fallback, leftOut ->
+        (on && (mode == EngineMode.ROOTLESS || (mode == EngineMode.ROOT && (fallback || leftOut)))) ||
+            (lib.switchByOutput && lib.assignments.isNotEmpty())
     }
         .distinctUntilChanged()
 
     init {
         presets.start()
+        appScope.launch { directVolumeSessions.run() }
         // Start the service whenever it should run (it stops itself when it should not).
         appScope.launch {
             serviceWanted.collect { if (it) EqService.start(app) }

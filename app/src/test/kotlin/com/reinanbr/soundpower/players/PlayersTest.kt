@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.reinanbr.soundpower.players
 
+import com.reinanbr.soundpower.protocol.Protocol
 import com.reinanbr.soundpower.root.AudioFlingerDump
 import com.reinanbr.soundpower.root.AudioFlingerDump.ChainEffect
 import com.reinanbr.soundpower.root.AudioFlingerDump.EffectChain
@@ -9,6 +10,7 @@ import com.reinanbr.soundpower.root.AudioFlingerDump.Track
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class PlayersTest {
     private fun track(session: Int, pid: Int, active: Boolean = true, stream: Int? = 3) = Track(session % 100, active, false, pid, session, stream)
@@ -103,6 +105,38 @@ class PlayersTest {
         // The whole output mix: everyone present is equalized; unknown without a way to tell.
         assertEquals(listOf(true, true, false), Players.list(sessions, known, null, everything = true).map { it.equalized })
         assertEquals(listOf(null, null, false), Players.list(sessions, known, null, everything = false).map { it.equalized })
+    }
+
+    @Test
+    fun sessionsLeftOutOfDirectVolumeControl() {
+        val sessions = listOf(
+            PlayerSession(201, "com.example.player", true, true),
+            PlayerSession(209, "com.example.radio", false, false),
+            PlayerSession(217, "com.example.player", false, false),
+            PlayerSession(241, null, false, true),
+        )
+        assertEquals(listOf(201, 217), Players.inputVolumeSessions(sessions, setOf("com.example.player")))
+        assertEquals(emptyList(), Players.inputVolumeSessions(sessions, emptySet()))
+        // Past the protocol's limit, playing sessions are kept first.
+        val many = (1..40).map { PlayerSession(it, "com.example.p", false, playing = it == 40) }
+        val kept = Players.inputVolumeSessions(many, setOf("com.example.p"))
+        assertEquals(Protocol.MAX_INPUT_VOLUME_SESSIONS, kept.size)
+        assertTrue(40 in kept)
+    }
+
+    @Test
+    fun knownPlayersKeepTheDirectVolumeChoice() {
+        // A line from before the choice existed leaves direct volume control on.
+        val old = KnownPlayers.decode("com.example.a,1,100")
+        assertEquals(true, old["com.example.a"]?.directVolume)
+        val off = old.setDirectVolume("com.example.a", false).setDirectVolume("com.example.new", false)
+        assertEquals(setOf("com.example.a", "com.example.new"), off.withoutDirectVolume)
+        assertEquals("com.example.a,1,100,0;com.example.new,1,0,0", off.encode())
+        assertEquals(off, KnownPlayers.decode(off.encode()))
+        // Turning a player off for the per-player modes keeps its volume choice, and back.
+        assertEquals(false, off.setEnabled("com.example.a", false)["com.example.a"]?.directVolume)
+        val list = Players.list(listOf(PlayerSession(5, "com.example.a", true, true)), off, null, false)
+        assertEquals(listOf(false, false), list.map { it.directVolume })
     }
 
     @Test

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package com.reinanbr.soundpower.players
 
+import com.reinanbr.soundpower.protocol.Protocol
 import com.reinanbr.soundpower.root.AudioFlingerDump
 
 /** A session a player plays on, and what the app knows about it. */
@@ -26,16 +27,27 @@ data class Player(
     /** SoundPower processes one of its sessions; null when the app cannot tell. */
     val equalized: Boolean?,
     val lastSeen: Long?,
+    /** Root mode: the effect applies its volume itself; off leaves it out of direct volume control. */
+    val directVolume: Boolean = true,
 ) {
     val present: Boolean get() = sessions.isNotEmpty()
 }
 
 /** A player the app has seen, remembered with the user's choice for it. */
-data class KnownPlayer(val packageName: String, val enabled: Boolean = true, val lastSeen: Long = 0)
+data class KnownPlayer(
+    val packageName: String,
+    val enabled: Boolean = true,
+    val lastSeen: Long = 0,
+    /** Root mode: the effect applies this player's volume itself (direct volume control is on). */
+    val directVolume: Boolean = true,
+)
 
 /** The remembered players, newest first, kept as one line in the app's preferences. */
 data class KnownPlayers(val players: List<KnownPlayer> = emptyList()) {
     val disabled: Set<String> get() = players.filterNot { it.enabled }.mapTo(HashSet()) { it.packageName }
+
+    /** Players left out of direct volume control. */
+    val withoutDirectVolume: Set<String> get() = players.filterNot { it.directVolume }.mapTo(HashSet()) { it.packageName }
 
     operator fun get(packageName: String): KnownPlayer? = players.firstOrNull { it.packageName == packageName }
 
@@ -49,18 +61,24 @@ data class KnownPlayers(val players: List<KnownPlayer> = emptyList()) {
         return KnownPlayers(updated.values.sortedByDescending { it.lastSeen }.take(MAX_PLAYERS))
     }
 
-    fun setEnabled(packageName: String, enabled: Boolean): KnownPlayers {
+    fun setEnabled(packageName: String, enabled: Boolean): KnownPlayers = change(packageName) { it.copy(enabled = enabled) }
+
+    fun setDirectVolume(packageName: String, on: Boolean): KnownPlayers = change(packageName) { it.copy(directVolume = on) }
+
+    private fun change(packageName: String, update: (KnownPlayer) -> KnownPlayer): KnownPlayers {
         val known = get(packageName)
         return if (known == null) {
-            KnownPlayers(players + KnownPlayer(packageName, enabled))
+            KnownPlayers(players + update(KnownPlayer(packageName)))
         } else {
-            KnownPlayers(players.map { if (it.packageName == packageName) it.copy(enabled = enabled) else it })
+            KnownPlayers(players.map { if (it.packageName == packageName) update(it) else it })
         }
     }
 
     fun forget(packageName: String): KnownPlayers = KnownPlayers(players.filterNot { it.packageName == packageName })
 
-    fun encode(): String = players.joinToString(";") { "${it.packageName},${if (it.enabled) 1 else 0},${it.lastSeen}" }
+    fun encode(): String = players.joinToString(";") {
+        "${it.packageName},${if (it.enabled) 1 else 0},${it.lastSeen},${if (it.directVolume) 1 else 0}"
+    }
 
     companion object {
         const val MAX_PLAYERS = 50
@@ -72,7 +90,8 @@ data class KnownPlayers(val players: List<KnownPlayer> = emptyList()) {
             s.orEmpty().split(';').mapNotNull { item ->
                 val f = item.split(',')
                 val name = f.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                KnownPlayer(name, f.getOrNull(1) != "0", f.getOrNull(2)?.toLongOrNull() ?: 0)
+                // The fourth field is newer: older lines leave direct volume control on.
+                KnownPlayer(name, f.getOrNull(1) != "0", f.getOrNull(2)?.toLongOrNull() ?: 0, f.getOrNull(3) != "0")
             },
         )
     }
@@ -121,6 +140,18 @@ object Players {
         return (fromAnnounce + tracked.orEmpty().filter { it.session !in announced }).sortedBy { it.session }
     }
 
+    /**
+     * The sessions the effect gets the stream volume at the input for (`INPUT_VOLUME_SESSIONS`):
+     * those of the players left out of direct volume control, playing ones first, at most the
+     * protocol's limit.
+     */
+    fun inputVolumeSessions(sessions: List<PlayerSession>, withoutDirectVolume: Set<String>): List<Int> =
+        sessions.filter { it.packageName != null && it.packageName in withoutDirectVolume }
+            .sortedWith(compareByDescending<PlayerSession> { it.playing == true }.thenByDescending { it.session })
+            .map { it.session }
+            .take(Protocol.MAX_INPUT_VOLUME_SESSIONS)
+            .sorted()
+
     /** The sessions an engine that attaches per player uses: every session of a player not turned off. */
     fun targets(sessions: List<PlayerSession>, disabled: Set<String>): Map<Int, String?> =
         sessions.filter { it.packageName == null || it.packageName !in disabled }.associate { it.session to it.packageName }
@@ -145,11 +176,15 @@ object Players {
                     else -> list.any { it.session in equalized }
                 },
                 lastSeen = known[pkg]?.lastSeen,
+                directVolume = known[pkg]?.directVolume ?: true,
             )
         }.sortedWith(compareByDescending<Player> { it.playing == true }.thenBy { it.packageName })
         val names = present.mapTo(HashSet()) { it.packageName }
         val absent = known.players.filter { it.packageName !in names }.map {
-            Player(it.packageName, emptyList(), playing = false, announced = false, enabled = it.enabled, equalized = false, lastSeen = it.lastSeen)
+            Player(
+                it.packageName, emptyList(), playing = false, announced = false, enabled = it.enabled, equalized = false,
+                lastSeen = it.lastSeen, directVolume = it.directVolume,
+            )
         }
         return present + absent
     }

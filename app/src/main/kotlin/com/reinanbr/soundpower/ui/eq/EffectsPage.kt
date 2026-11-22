@@ -19,6 +19,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -76,7 +77,7 @@ internal fun EffectsPage(state: EqUiState, vm: EqViewModel, actions: EqActions) 
             StereoCard(s.stereo, on, features.stereoMix, vm, actions.requestValue)
             CompressorCard(s.compressor, on, vm, actions.requestValue)
             LimiterCard(s.limiter, on, features.mode == EngineMode.ROOTLESS, vm, actions.requestValue)
-            if (features.mode == EngineMode.ROOT) DirectVolumeCard(state.status)
+            if (features.mode == EngineMode.ROOT) DirectVolumeCard(state.status, onOpenPlayers = { actions.openTool(EqTool.PLAYERS) })
             Text(
                 stringResource(R.string.eq_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -306,7 +307,11 @@ private fun LimiterCard(
  * when it is loaded), and, while it is on, how each playing stream's volume is applied.
  */
 @Composable
-private fun DirectVolumeCard(status: EqStatus?, dv: DirectVolumeViewModel = viewModel(factory = DirectVolumeViewModel.Factory)) {
+private fun DirectVolumeCard(
+    status: EqStatus?,
+    onOpenPlayers: () -> Unit,
+    dv: DirectVolumeViewModel = viewModel(factory = DirectVolumeViewModel.Factory),
+) {
     val ui by dv.state.collectAsStateWithLifecycle()
     val enabled = ui.enabled ?: return
     // Null while unknown (the effect was not reached yet).
@@ -335,6 +340,9 @@ private fun DirectVolumeCard(status: EqStatus?, dv: DirectVolumeViewModel = view
                     Text(stringResource(R.string.direct_volume_waiting), style = MaterialTheme.typography.bodySmall, color = muted)
                 }
                 for (d in streams.take(MAX_STREAMS)) StreamVolumeLine(d)
+                if (status.capabilities?.let { it and Capability.INPUT_VOLUME_SESSIONS != 0 } == true) {
+                    TextButton(onClick = onOpenPlayers) { Text(stringResource(R.string.direct_volume_per_player)) }
+                }
             }
         }
         when (val e = ui.restartError) {
@@ -371,7 +379,14 @@ private fun StreamVolumeLine(d: EffectDump) {
     } else {
         stringResource(R.string.direct_volume_left_right, formatDb(v.leftDb), formatDb(v.rightDb), db)
     }
-    val text = stringResource(if (v.applied) R.string.direct_volume_stream_applied else R.string.direct_volume_stream_mixer, d.sessionId, level)
+    val text = stringResource(
+        when {
+            !v.applied -> R.string.direct_volume_stream_mixer
+            v.atInput -> R.string.direct_volume_stream_input
+            else -> R.string.direct_volume_stream_applied
+        },
+        d.sessionId, level,
+    )
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
