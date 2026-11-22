@@ -73,6 +73,26 @@ class AudioEffectTransport private constructor(private val effect: AudioEffect) 
             return AudioEffectTransport(effect)
         }
 
+        /**
+         * Attaches an enabled instance to a player's [session], for the root mode's per-session
+         * fallback. If the system already attached SoundPower there, AudioFlinger hands out the same
+         * instance, so nothing is processed twice. The highest priority keeps other apps from taking
+         * control of it. Closing the result releases the instance.
+         */
+        fun attach(session: Int): AutoCloseable {
+            val effect = try {
+                Hidden.constructor.newInstance(Protocol.EFFECT_TYPE_UUID, Protocol.EFFECT_IMPL_UUID, Int.MAX_VALUE, session)
+            } catch (e: InvocationTargetException) {
+                throw e.cause ?: e
+            }
+            val status = effect.setEnabled(true)
+            if (status != AudioEffect.SUCCESS) {
+                effect.release()
+                throw IllegalStateException("could not enable the instance ($status)")
+            }
+            return AutoCloseable { effect.release() }
+        }
+
         /** True if audioserver lists the SoundPower implementation (public API, no root needed). */
         fun isRegistered(): Boolean =
             AudioEffect.queryEffects().orEmpty().any { it.uuid == Protocol.EFFECT_IMPL_UUID }
