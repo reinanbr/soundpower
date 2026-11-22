@@ -37,6 +37,19 @@ It also runs once at every boot; the output is in `/data/adb/modules/soundpower/
 | SELinux | `dmesg \| grep avc` and `logcat -b all \| grep avc`, looking for `soundpower` or `soundfx` |
 | Saved state | `ls -lZ /data/vendor/soundpower` (directory and files must be `soundpower_data_file`). The label alone is not proof: check that the policy defines the type with `printf %s u:object_r:soundpower_data_file:s0 > /sys/fs/selinux/context` (fails if not; `diag.sh` prints `policy: soundpower_data_file loaded`). Otherwise the HAL sees the files as `unlabeled` and is denied. |
 
+## Without root
+
+Advanced player tracking reads AudioFlinger's dump with the DUMP permission:
+
+```sh
+adb shell pm grant com.reinanbr.soundpower android.permission.DUMP
+adb shell dumpsys package com.reinanbr.soundpower | grep 'android.permission.DUMP: granted'
+```
+
+`adb shell pm revoke com.reinanbr.soundpower android.permission.DUMP` takes it back. The same
+`dumpsys media.audio_flinger` shows the Dynamics Processing instances the app attached (owner pid in
+each effect's client list) and the sessions they sit on.
+
 ## Module logs
 
 `/data/adb/modules/soundpower/log/boot.log` records, for every boot:

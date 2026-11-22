@@ -209,10 +209,10 @@ Gradle modules; the Gradle root is the repository root.
 | `android-core:protocol` | JVM | Kotlin mirror of `protocol.h`: payload codecs and the `state.bin` format. Its tests read `protocol/vectors/*.hex` and must produce the same bytes as the C++ side. |
 | `android-core:model` | JVM | `AudioSettings` (what the app stores: graphic layouts and gains, parametric bands with type, channel, colour and lock, tone, stereo and dynamics, as JSON), `EqSettings` (the protocol payloads derived from it, minus what the connected effect's capabilities do not list), and `ResponseCurve`, which computes the curve per channel and auto-preamp exactly like the C++ core (checked against `sp-cli response` output). Presets (`Preset`, `BuiltInPresets`, the `PresetFile` JSON format), AutoEQ files and the bundled database (`AutoEq`, `AutoEqIndex`), outputs and assignments (`OutputKey`, `PresetLibrary`), and the settings backup (`SettingsBackup`). |
 | `android-core:data` | JVM | DataStore of `AudioSettings` as JSON, with a one-time import of the first version's store; `PresetStore`, the DataStore of the `PresetLibrary`. |
-| `android-core:root` | Android | `RootShell` (libsu) and `ModuleManager`: Magisk version, module state, `magisk --install-module`, reboot, the state-file write, the audio restart, the system check, `dumpsys` parsing (`AudioFlingerDump`). Its tests run the shell scripts in the host's `sh` against a temporary tree, and parse real `dumpsys media.audio_flinger` output from Android 12 and 15. |
-| `android-core:effect` | Android | `EffectController` and its `AudioEffect` transport (HiddenApiBypass). |
+| `android-core:root` | Android | `RootShell` (libsu) and `ModuleManager`: Magisk version, module state, `magisk --install-module`, reboot, the state-file write, the audio restart, the system check, `dumpsys` parsing (`AudioFlingerDump`). Its tests run the shell scripts in the host's `sh` against a temporary tree, and parse real `dumpsys media.audio_flinger` output from Android 12, 15 and 16. |
+| `android-core:effect` | Android | `EffectController` and its `AudioEffect` transport (HiddenApiBypass), and `SessionInstances` (the root mode's per-session fallback). |
 | `android-core:rootless` | Android | `RootlessEngine`: the mode without root, on Android's `DynamicsProcessing` effect (`DynamicsEffect` wraps it so the engine is tested on the JVM). The plan it applies (`SpectralLayout`, `DynamicsPlan`) lives in `android-core:model`. |
-| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, `PresetRepository` and `OutputMonitor` (presets and outputs), `DiagnosticsRepository` and `Diagnosis` (diagnostics), `EqService` and `BootReceiver` (the background service), and `AppContainer` (dependency injection by hand). |
+| `app` | Android | Compose UI, ViewModels, `SetupRepository`, `EqRepository`, `PresetRepository` and `OutputMonitor` (presets and outputs), `PlayerTracker` and `Players` (players), `DiagnosticsRepository` and `Diagnosis` (diagnostics), `EqService` and `BootReceiver` (the background service), and `AppContainer` (dependency injection by hand). |
 
 **Control path.** `EffectController` creates an `AudioEffect` with SoundPower's type and
 implementation UUIDs on a session from `generateAudioSessionId()`. That constructor and
@@ -242,8 +242,8 @@ move, long-press to type), a dashed curve for each channel with bands of its own
 band with type, channel, colour, lock and knobs for frequency, gain and Q. *Tone and dynamics*:
 knobs for bass and treble with their frequencies, balance and width (plus mono), the compressor,
 the limiter and, in the root mode, direct volume control. *Menu*: band configuration, reset, presets
-(the list, switching by output, AutoEQ suggestions, settings export and import), setup and status,
-diagnostics, theme, version.
+(the list, switching by output, AutoEQ suggestions, settings export and import), the engine and the
+players, setup and status, diagnostics, theme, version.
 
 **Motion.** A control under the finger follows it exactly; a value that changes on its own (reset,
 typed value, mode switch) springs to it. Dragged values stick briefly at their centre with a tick,
@@ -324,6 +324,37 @@ Seen on the test device: LineageOS's AudioFX attaches an equalizer, bass boost a
 the player's session; the virtualizer comes after SoundPower and controls the volume, so direct
 volume control has no effect there until AudioFX's effects are off.
 
+## Players
+
+**Finding them.** `PlayerTracker` has two sources. Players announce their sessions with
+`ACTION_OPEN/CLOSE_AUDIO_EFFECT_CONTROL_SESSION`; a receiver registered while the app's process
+lives keeps them. AudioFlinger's dump shows every track with its session, client pid and stream
+type, and the pid's process name; `Players.tracked` keeps other apps' music tracks (not the
+system's, not the app's own). The dump is read every 3 seconds while something collects it: as
+root in the root mode, and without root through `ServiceDump` when *advanced tracking* is on. That
+asks `media.audio_flinger` for its dump through Binder (`ServiceManager.checkService` is hidden;
+`IBinder.dumpAsync` into a pipe is public), as `dumpsys` does, and AudioFlinger answers only apps
+holding `android.permission.DUMP`, which the user grants once from a computer
+(`adb shell pm grant com.reinanbr.soundpower android.permission.DUMP`). Players seen are remembered
+(`KnownPlayers`, 50 at most, in the UI preferences) with the user's choice for each.
+
+**Attaching per player.** Without root, *players one by one* attaches the engine to every session
+the tracker knows, announced or tracked, minus the players turned off. With root, the module's
+effect is attached by the system to every music stream; for devices where that fails, *attach to
+players myself* (`SessionInstances`) has the app create an enabled SoundPower instance on each
+player's session, at the highest priority. The instances take their settings from the library's
+shared state, and where the system already attached SoundPower, AudioFlinger hands out the same
+instance, so nothing is processed twice. `EqService` holds them, as it holds the engine without
+root; failed sessions are tried again with the same back-off.
+
+**Showing them.** A chip on the equalizer page names the player SoundPower equalizes now ("All
+audio" for the global effect, a warning when a playing player is not equalized) and opens the
+players screen: how players are found in the current mode (with the adb command and a check
+button while the permission is missing), the players with a session now and their state, the
+players seen before, and a switch for each where the engine attaches per player. Equalized means
+an enabled SoundPower instance on the player's session or on its thread's output mix (root), or an
+active attachment (without root).
+
 ## Mode without root
 
 On first launch the app asks how it should make the sound (`EngineMode`, stored with the UI
@@ -355,9 +386,8 @@ few dozen band gains, not the whole curve. An instance that fails is recreated o
 plan; one that cannot be created is retried with a back-off (2 s doubling to 60 s).
 
 **Where it attaches.** *All audio*: session 0, the global output mix; AudioFlinger puts it on the
-output that plays music and moves it with the route. *Players that announce their audio*: the
-sessions players open with `ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION`, for devices where session 0
-has no effect.
+output that plays music and moves it with the route. *Players one by one*: the players' sessions
+(see [Players](#players)), for devices where session 0 has no effect or to leave players out.
 
 **Lifetime.** Android removes an app's effects when its process dies, so `EqService`, a
 foreground service (`specialUse`), holds them while the mode is on and the equalizer is enabled.
