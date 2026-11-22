@@ -559,7 +559,7 @@
     <string name="players_how">How players are found</string>
     <string name="players_how_root">The module attaches SoundPower to every music stream. The app reads Android\'s audio service as root to show who plays.</string>
     <string name="players_root_fallback">Attach to players myself</string>
-    <string name="players_root_fallback_hint">For phones where the module\'s effect does not reach music. SoundPower attaches to each player below, while a notification shows.</string>
+    <string name="players_root_fallback_hint">For phones where the module\'s effect does not reach music. SoundPower attaches to each player turned on below, while a notification shows. Where the module works, a player turned off is still equalized by it.</string>
     <string name="players_advanced">Find players that do not announce</string>
     <string name="players_advanced_hint">Reads which apps play from Android\'s audio service, every few seconds. Needs a permission you grant once from a computer.</string>
     <string name="players_permission_title">Grant the permission</string>
@@ -583,5 +583,18 @@
     <string name="players_state_equalized">Equalized</string>
     <string name="players_state_open">Audio session open</string>
     <string name="players_state_off">Turned off</string>
-    <string name="players_last_seen">Last seen %1$s</string>
+    <string name="players_state_off_module">Turned off · the module still equalizes it</string>
+    <string name="players_last_seen_now">Seen just now</string>
+    <plurals name="players_last_seen_minutes">
+        <item quantity="one">Seen %1$d minute ago</item>
+        <item quantity="other">Seen %1$d minutes ago</item>
+    </plurals>
+    <plurals name="players_last_seen_hours">
+        <item quantity="one">Seen %1$d hour ago</item>
+        <item quantity="other">Seen %1$d hours ago</item>
+    </plurals>
+    <plurals name="players_last_seen_days">
+        <item quantity="one">Seen %1$d day ago</item>
+        <item quantity="other">Seen %1$d days ago</item>
+    </plurals>
 </resources>

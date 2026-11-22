@@ -345,7 +345,9 @@ players myself* (`SessionInstances`) has the app create an enabled SoundPower in
 player's session, at the highest priority. The instances take their settings from the library's
 shared state, and where the system already attached SoundPower, AudioFlinger hands out the same
 instance, so nothing is processed twice. `EqService` holds them, as it holds the engine without
-root; failed sessions are tried again with the same back-off.
+root; failed sessions are tried again with the same back-off. Turning a player off there removes
+only the app's instance: where the system attached the module's effect, it stays, and the players
+screen says so.
 
 **Showing them.** A chip on the equalizer page names the player SoundPower equalizes now ("All
 audio" for the global effect, a warning when a playing player is not equalized) and opens the

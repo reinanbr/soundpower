@@ -4,7 +4,6 @@ package com.reinanbr.soundpower.ui.players
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Build
-import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -211,7 +211,7 @@ private fun PlayerRow(p: Player, state: PlayersUi, vm: PlayersViewModel) {
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.bodyLarge)
             Text(
-                status(p, state.perPlayer),
+                status(p, state),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (p.playing == true && p.equalized == false) scheme.error else scheme.onSurfaceVariant,
             )
@@ -233,11 +233,12 @@ private fun PlayerRow(p: Player, state: PlayersUi, vm: PlayersViewModel) {
 }
 
 @Composable
-private fun status(p: Player, perPlayer: Boolean): String = when {
-    perPlayer && !p.enabled -> stringResource(R.string.players_state_off)
-    !p.present -> p.lastSeen?.takeIf { it > 0 }?.let {
-        stringResource(R.string.players_last_seen, DateUtils.getRelativeTimeSpanString(it, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS))
-    } ?: ""
+private fun status(p: Player, state: PlayersUi): String = when {
+    // Root mode: turning a player off removes the app's instance, not the module's.
+    state.perPlayer && !p.enabled && p.present && p.equalized == true && state.mode == EngineMode.ROOT ->
+        stringResource(R.string.players_state_off_module)
+    state.perPlayer && !p.enabled -> stringResource(R.string.players_state_off)
+    !p.present -> p.lastSeen?.takeIf { it > 0 }?.let { lastSeen(System.currentTimeMillis() - it) } ?: ""
     p.playing == true && p.equalized == true -> stringResource(R.string.players_state_playing_equalized)
     p.playing == true && p.equalized == false -> stringResource(R.string.players_state_playing_not_equalized)
     p.playing == true -> stringResource(R.string.players_state_playing)
@@ -245,6 +246,20 @@ private fun status(p: Player, perPlayer: Boolean): String = when {
     p.equalized == true -> stringResource(R.string.players_state_equalized)
     else -> stringResource(R.string.players_state_open)
 }
+
+/** In the app's language: the system's relative times follow the device's. */
+@Composable
+private fun lastSeen(ago: Long): String {
+    val minutes = (ago / MINUTE_MS).toInt()
+    return when {
+        minutes < 1 -> stringResource(R.string.players_last_seen_now)
+        minutes < 60 -> pluralStringResource(R.plurals.players_last_seen_minutes, minutes, minutes)
+        minutes < 24 * 60 -> pluralStringResource(R.plurals.players_last_seen_hours, minutes / 60, minutes / 60)
+        else -> pluralStringResource(R.plurals.players_last_seen_days, minutes / (24 * 60), minutes / (24 * 60))
+    }
+}
+
+private const val MINUTE_MS = 60_000L
 
 @Composable
 private fun Note(text: String) {
