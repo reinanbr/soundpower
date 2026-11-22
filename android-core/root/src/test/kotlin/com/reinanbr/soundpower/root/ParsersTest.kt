@@ -82,6 +82,17 @@ class ParsersTest {
     }
 
     @Test
+    fun effectDumpLinesWithTheVolumeStage() {
+        val line = "SoundPower 0.6.0 (protocol 1.3): session 689 io 13, active, 48000 Hz, 2 ch, format 0x5, " +
+            "cpu avg 9.24% peak 11.99%, limiter 0.00 dB, 2751360 frames, flags 0x18, 2 instances, " +
+            "volume -11.5/-11.5 dB applied (stage -11.5 dB), peak in -45.0 out -68.4 dBFS, volume stage input"
+        assertEquals(true, EffectDump.parse(listOf(line)).single().volume?.atInput)
+        assertEquals(false, EffectDump.parse(listOf(line.replace("stage input", "stage output"))).single().volume?.atInput)
+        // A 1.2 line has no stage: before the limiter.
+        assertEquals(false, EffectDump.parse(listOf(line.substringBefore(", volume stage"))).single().volume?.atInput)
+    }
+
+    @Test
     fun quoting() {
         assertEquals("'/data/a b'", shQuote("/data/a b"))
         assertEquals("'it'\\''s'", shQuote("it's"))

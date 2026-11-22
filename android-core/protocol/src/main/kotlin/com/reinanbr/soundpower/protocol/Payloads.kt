@@ -231,6 +231,34 @@ data class CompressorParams(
     }
 }
 
+/**
+ * `INPUT_VOLUME_SESSIONS` (0x0700, since 1.3): sessions left out of direct volume control. The
+ * effect applies their stream volume at the chain's input, as the mixer would, instead of after
+ * the compressor. At most [Protocol.MAX_INPUT_VOLUME_SESSIONS].
+ */
+data class InputVolumeSessions(val sessions: List<Int>) {
+    init {
+        require(sessions.size <= Protocol.MAX_INPUT_VOLUME_SESSIONS) { "${sessions.size} sessions" }
+    }
+
+    fun encode(): ByteArray {
+        val w = Wire.writer(4 + 4 * sessions.size).putInt(sessions.size)
+        sessions.forEach { w.putInt(it) }
+        return w.array()
+    }
+
+    companion object {
+        fun decode(bytes: ByteArray): InputVolumeSessions {
+            val r = Wire.reader(bytes, 4, "INPUT_VOLUME_SESSIONS")
+            val count = r.getInt()
+            if (count < 0 || count > Protocol.MAX_INPUT_VOLUME_SESSIONS || r.remaining() < 4 * count) {
+                throw ProtocolException("INPUT_VOLUME_SESSIONS: bad count $count")
+            }
+            return InputVolumeSessions(List(count) { r.getInt() })
+        }
+    }
+}
+
 /** `PROTOCOL_INFO` (0x0001, read-only). */
 data class ProtocolInfo(
     val major: Int,

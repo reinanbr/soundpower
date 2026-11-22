@@ -23,7 +23,7 @@ class Protocol12Test {
         val v11 = StateFile.decode(GoldenVectors.bytes("state_file_v1_1")).entries
         val master = MasterParams(autoPreamp = true, preampDb = 3.25f, limiterEnabled = false, directVolume = true)
         val entries = listOf(StateFile.Entry(ParamId.MASTER, master.encode())) + v11.drop(1)
-        assertContentEquals(GoldenVectors.bytes("state_file_v1_2"), StateFile.encode(entries))
+        assertContentEquals(GoldenVectors.bytes("state_file_v1_2"), StateFile.encode(entries, minor = 2))
         val decoded = StateFile.decode(GoldenVectors.bytes("state_file_v1_2"))
         assertEquals(2, decoded.minor)
         assertEquals(entries, decoded.entries)

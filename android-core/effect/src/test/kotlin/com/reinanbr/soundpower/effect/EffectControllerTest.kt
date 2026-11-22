@@ -6,6 +6,7 @@ import com.reinanbr.soundpower.model.GraphicBands
 import com.reinanbr.soundpower.protocol.Capability
 import com.reinanbr.soundpower.protocol.EffectStatus
 import com.reinanbr.soundpower.protocol.EqState
+import com.reinanbr.soundpower.protocol.InputVolumeSessions
 import com.reinanbr.soundpower.protocol.MasterParams
 import com.reinanbr.soundpower.protocol.ParamId
 import com.reinanbr.soundpower.protocol.StereoParams
@@ -125,6 +126,34 @@ class EffectControllerTest {
         )
         assertEquals(4f, ToneParams.decode(sent.getValue(ParamId.TONE)).bassDb)
         assertEquals(true, StereoParams.decode(sent.getValue(ParamId.STEREO)).mono)
+    }
+
+    @Test
+    fun sendsTheSessionsLeftOutOfDirectVolumeControl() = runTest {
+        val caps = 3 or Capability.INPUT_VOLUME_SESSIONS
+        val (c, opened) = controller(FakeEffect(capabilities = caps), FakeEffect(capabilities = caps))
+        c.setInputVolumeSessions(listOf(1449, 7, 1449))
+        val effect = opened.single()
+        assertEquals(listOf(ParamId.INPUT_VOLUME_SESSIONS), effect.calls)
+        assertEquals(listOf(1449, 7), InputVolumeSessions.decode(effect.set.getValue(ParamId.INPUT_VOLUME_SESSIONS)).sessions)
+        c.setInputVolumeSessions(listOf(1449, 7))
+        c.apply(EqSettings())
+        assertEquals(1, effect.calls.count { it == ParamId.INPUT_VOLUME_SESSIONS }) // unchanged
+
+        // A new connection sends the list again, even an empty one: the old list outlives the app.
+        effect.deadOnce = true
+        c.setInputVolumeSessions(emptyList())
+        assertEquals(listOf(ParamId.INPUT_VOLUME_SESSIONS), opened[1].calls)
+        c.apply(EqSettings())
+        assertEquals(listOf(ParamId.INPUT_VOLUME_SESSIONS, ParamId.MASTER, ParamId.EQ_STATE, ParamId.LIMITER), opened[1].calls)
+    }
+
+    @Test
+    fun anOlderEffectGetsNoSessionList() = runTest {
+        val (c, opened) = controller(FakeEffect(capabilities = 3 or Capability.DIRECT_VOLUME))
+        c.setInputVolumeSessions(listOf(5))
+        c.apply(EqSettings())
+        assertEquals(listOf(ParamId.MASTER, ParamId.EQ_STATE, ParamId.LIMITER), opened.single().calls)
     }
 
     @Test

@@ -6,7 +6,7 @@ import java.util.UUID
 /** Constants of protocol/include/soundpower/protocol.h; the two must stay in sync. */
 object Protocol {
     const val VERSION_MAJOR = 1
-    const val VERSION_MINOR = 2
+    const val VERSION_MINOR = 3
 
     const val EFFECT_NAME = "SoundPower"
     val EFFECT_TYPE_UUID: UUID = UUID.fromString("69dc09f7-12a9-471d-89a1-603608c452c9")
@@ -18,6 +18,9 @@ object Protocol {
     const val STATE_FILE_MAX_BYTES = 65536
 
     const val MAX_BANDS = 32
+
+    /** Sessions in one `INPUT_VOLUME_SESSIONS` (since 1.3). */
+    const val MAX_INPUT_VOLUME_SESSIONS = 32
     const val MAX_MESSAGE_BYTES = 1024
 
     const val FREQ_MIN_HZ = 10f
@@ -67,6 +70,9 @@ object ParamId {
     const val STEREO = 0x0500
     const val COMPRESSOR = 0x0600
 
+    /** Since 1.3; process-wide like the others, but never in `state.bin`. */
+    const val INPUT_VOLUME_SESSIONS = 0x0700
+
     /** The `param` bytes of `AudioEffect.setParameter/getParameter`: the ID as a little-endian u32. */
     fun bytes(id: Int): ByteArray = Wire.writer(4).putInt(id).array()
 }
@@ -88,6 +94,9 @@ object Capability {
 
     /** The effect understands [MasterParams.FLAG_DIRECT_VOLUME] (since 1.2). */
     const val DIRECT_VOLUME = 1 shl 14
+
+    /** The effect understands [InputVolumeSessions] (since 1.3). */
+    const val INPUT_VOLUME_SESSIONS = 1 shl 15
 }
 
 /** A payload that does not follow docs/protocol.md. */

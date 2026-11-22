@@ -2,8 +2,11 @@
 package com.reinanbr.soundpower.effect
 
 import com.reinanbr.soundpower.model.EqSettings
+import com.reinanbr.soundpower.protocol.Capability
 import com.reinanbr.soundpower.protocol.EffectStatus
+import com.reinanbr.soundpower.protocol.InputVolumeSessions
 import com.reinanbr.soundpower.protocol.ParamId
+import com.reinanbr.soundpower.protocol.Protocol
 import com.reinanbr.soundpower.protocol.ProtocolInfo
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -72,6 +75,9 @@ class EffectController(
     /** Payloads sent on the current connection, by ID. */
     private val sent = HashMap<Int, ByteArray>()
 
+    /** The sessions left out of direct volume control, sent with every [apply] after a reconnect. */
+    private var inputVolume = InputVolumeSessions(emptyList())
+
     /** Counts connections, so [apply] notices a reconnect. */
     private var generation = 0
 
@@ -98,17 +104,43 @@ class EffectController(
                 is Connection.Incompatible -> throw EffectException("the effect speaks protocol ${c.info.major}.${c.info.minor}")
                 is Connection.Failed -> throw EffectException(c.reason)
             }
-            for (m in settings.messages(capabilities)) {
-                if (sent[m.id]?.contentEquals(m.payload) == true) continue
-                sent.remove(m.id)
-                val code = call { it.setParameter(ParamId.bytes(m.id), m.payload) }
-                if (code != EffectCodes.SUCCESS) {
-                    throw EffectException("setting parameter 0x%04x failed: %s".format(m.id, EffectCodes.name(code)))
-                }
-                sent[m.id] = m.payload
-            }
+            for (m in settings.messages(capabilities)) sendLocked(m.id, m.payload)
+            sendInputVolumeLocked(capabilities)
             if (generation == this.generation) break
         }
+    }
+
+    /**
+     * Sets the sessions whose stream volume the effect applies at the chain's input, leaving them
+     * out of direct volume control (protocol 1.3). The effect keeps the list until it is set again
+     * or the audio server restarts; it is sent again on each new connection. An effect without the
+     * capability is left alone. Throws [EffectException].
+     */
+    suspend fun setInputVolumeSessions(sessions: List<Int>) = locked {
+        inputVolume = InputVolumeSessions(sessions.distinct().take(Protocol.MAX_INPUT_VOLUME_SESSIONS))
+        val capabilities = when (val c = connectLocked()) {
+            is Connection.Connected -> c.info.capabilities
+            is Connection.Incompatible -> throw EffectException("the effect speaks protocol ${c.info.major}.${c.info.minor}")
+            is Connection.Failed -> throw EffectException(c.reason)
+        }
+        sendInputVolumeLocked(capabilities)
+    }
+
+    private fun sendInputVolumeLocked(capabilities: Int) {
+        if (capabilities and Capability.INPUT_VOLUME_SESSIONS == 0) return
+        // Sent once per connection even when empty: the list lives in the audio server's process
+        // and outlives the app, so a list from an earlier run of the app is replaced.
+        sendLocked(ParamId.INPUT_VOLUME_SESSIONS, inputVolume.encode())
+    }
+
+    private fun sendLocked(id: Int, payload: ByteArray) {
+        if (sent[id]?.contentEquals(payload) == true) return
+        sent.remove(id)
+        val code = call { it.setParameter(ParamId.bytes(id), payload) }
+        if (code != EffectCodes.SUCCESS) {
+            throw EffectException("setting parameter 0x%04x failed: %s".format(id, EffectCodes.name(code)))
+        }
+        sent[id] = payload
     }
 
     /** `STATUS` of the control instance, with the process-wide counters. Throws [EffectException]. */

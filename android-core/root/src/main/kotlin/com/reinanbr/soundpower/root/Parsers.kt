@@ -149,6 +149,8 @@ data class EffectDump(
         /** -999 means silence. */
         val inputPeakDb: Float,
         val outputPeakDb: Float,
+        /** Applied at the chain's input: the session is left out of direct volume control (1.3). */
+        val atInput: Boolean = false,
     )
 
     companion object {
@@ -158,7 +160,7 @@ data class EffectDump(
                 """(\d+) Hz, (\d+) ch, format 0x([0-9a-f]+), cpu avg ([\d.]+)% peak ([\d.]+)%, """ +
                 """limiter (-?[\d.]+) dB, (\d+) frames, flags 0x([0-9a-f]+), (\d+) instances""" +
                 """(?:, volume (-?[\d.]+)/(-?[\d.]+) dB (applied|by mixer) \(stage (-?[\d.]+) dB\), """ +
-                """peak in (-?[\d.]+) out (-?[\d.]+) dBFS)?""",
+                """peak in (-?[\d.]+) out (-?[\d.]+) dBFS(?:, volume stage (input|output))?)?""",
         )
 
         fun parse(lines: List<String>): List<EffectDump> = lines.mapNotNull { line ->
@@ -180,7 +182,10 @@ data class EffectDump(
                 volume = if (g[14].isEmpty()) {
                     null
                 } else {
-                    StreamVolume(g[14].toFloat(), g[15].toFloat(), g[16] == "applied", g[17].toFloat(), g[18].toFloat(), g[19].toFloat())
+                    StreamVolume(
+                        g[14].toFloat(), g[15].toFloat(), g[16] == "applied", g[17].toFloat(), g[18].toFloat(), g[19].toFloat(),
+                        atInput = g[20] == "input",
+                    )
                 },
             )
         }
