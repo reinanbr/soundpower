@@ -35,12 +35,14 @@ fun ParamKnob(
     enabled: Boolean = true,
     size: Dp = 80.dp,
     accent: Color? = null,
+    /** Whether a drag that starts sideways moves the knob; false in a row that scrolls sideways. */
+    sideways: Boolean = true,
 ) {
     if (scale == Scale.LINEAR) {
         Knob(
             value = value, range = range, label = label, valueText = valueText, onChange = onChange,
             onLongPress = onLongPress, modifier = modifier, default = default, enabled = enabled, size = size,
-            origin = origin, accent = accent,
+            origin = origin, accent = accent, sideways = sideways,
         )
     } else {
         Knob(
@@ -56,6 +58,7 @@ fun ParamKnob(
             size = size,
             origin = toPosition(origin, range, scale),
             accent = accent,
+            sideways = sideways,
         )
     }
 }

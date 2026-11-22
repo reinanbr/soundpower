@@ -299,27 +299,28 @@ private fun BandCard(
                 TypeSelector(band.type, editable, Modifier.weight(1.3f)) { t -> update { it.copy(type = t) } }
                 ChannelSelector(band.channel, editable, features::supports, Modifier.weight(1f)) { c -> update { it.copy(channel = c) } }
             }
+            // The cards scroll sideways, so the knobs leave sideways drags to the row.
             Row(Modifier.fillMaxWidth().alpha(dim), horizontalArrangement = Arrangement.SpaceBetween) {
                 ParamKnob(
                     label = freqShort, value = band.freqHz, range = Ranges.FREQ_HZ, valueText = formatHz(band.freqHz),
                     onChange = { v -> update { it.copy(freqHz = v) } },
                     onLongPress = { onRequestValue(ValueRequest(freq, band.freqHz, Ranges.FREQ_HZ, hz, 0) { v -> update { it.copy(freqHz = v) } }) },
                     default = 1000f, scale = Scale.LOG, enabled = editable, size = KNOB_SIZE, accent = color,
-                    modifier = Modifier.weight(1f),
+                    sideways = false, modifier = Modifier.weight(1f),
                 )
                 ParamKnob(
                     label = gain, value = band.gainDb, range = Ranges.BAND_GAIN_DB, valueText = formatDb(band.gainDb),
                     onChange = { v -> update { it.copy(gainDb = v) } },
                     onLongPress = { onRequestValue(ValueRequest(gain, band.gainDb, Ranges.BAND_GAIN_DB, db, 1) { v -> update { it.copy(gainDb = v) } }) },
                     default = 0f, enabled = editable && usesGain, size = KNOB_SIZE,
-                    modifier = Modifier.weight(1f),
+                    sideways = false, modifier = Modifier.weight(1f),
                 )
                 ParamKnob(
                     label = q, value = band.q, range = Ranges.Q, valueText = formatNumber(band.q, 2),
                     onChange = { v -> update { it.copy(q = v) } },
                     onLongPress = { onRequestValue(ValueRequest(q, band.q, Ranges.Q, "", 2) { v -> update { it.copy(q = v) } }) },
                     default = 0.71f, scale = Scale.LOG, enabled = editable, size = KNOB_SIZE, accent = color,
-                    modifier = Modifier.weight(1f),
+                    sideways = false, modifier = Modifier.weight(1f),
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -5,8 +5,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
@@ -26,6 +29,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -46,10 +50,11 @@ private const val START_DEG = 135f
 private const val SWEEP_DEG = 270f
 
 /**
- * A rotary control. Drag up or down to turn it (the whole range over [dragSpan]); it sticks
- * briefly at [default] with a tick. Double-tap to spring back to [default], long-press to type
- * an exact value. The arc starts at [origin] (normally [default]), so boosts and cuts read at a
- * glance. Only the dial takes the gestures, so a page of knobs still scrolls from their labels.
+ * A rotary control. Turn it by its rim like a real knob (the whole range over the arc), or drag
+ * it up or down, or sideways, from its cap (the whole range over [dragSpan]); see [knobDrag]. It
+ * sticks briefly at [default] with a tick. Double-tap to spring back to [default], long-press to type an exact
+ * value. The arc starts at [origin] (normally [default]), so boosts and cuts read at a glance.
+ * Only the dial takes the gestures, so a page of knobs still scrolls from their labels.
  */
 @Composable
 fun Knob(
@@ -68,6 +73,8 @@ fun Knob(
     origin: Float = default,
     /** Colour of the value arc; null uses the boost colour above [origin] and the cut colour below. */
     accent: Color? = null,
+    /** Whether a drag that starts sideways moves the knob; false in a row that scrolls sideways. */
+    sideways: Boolean = true,
 ) {
     val current by rememberUpdatedState(value)
     val change by rememberUpdatedState(onChange)
@@ -114,26 +121,57 @@ fun Knob(
                         }
                     }
                 }
-                .pointerInput(enabled, range, default) {
+                .pointerInput(enabled, range, default, sideways) {
                     if (!enabled) return@pointerInput
-                    var start = 0f
-                    var dy = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = {
-                            start = current
-                            dy = 0f
-                            dragging = true
-                            haptics.begin(current)
-                        },
-                        onDragEnd = { dragging = false },
-                        onDragCancel = { dragging = false },
-                    ) { pointer, amount ->
-                        pointer.consume()
-                        dy += amount
-                        val raw = (start - dy / dragSpan.toPx() * span).coerceIn(range)
-                        val v = stick(raw, default, span * DETENT_FRACTION)
-                        haptics.drag(v, default, range)
-                        change(v)
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val centre = Offset(this@pointerInput.size.width / 2f, this@pointerInput.size.height / 2f)
+                        val radius = minOf(this@pointerInput.size.width, this@pointerInput.size.height) / 2f
+                        var from = down.position
+                        var kind = KnobDrag.UP_DOWN
+                        var over = Offset.Zero
+                        val first = awaitTouchSlopOrCancellation(down.id) { c, overSlop ->
+                            val k = knobDrag(from - centre, c.position - from, radius, sideways)
+                            if (k == null) {
+                                // Left to the row; the slop counts again from here.
+                                from = c.position
+                            } else {
+                                kind = k
+                                over = overSlop
+                                c.consume()
+                            }
+                        } ?: return@awaitEachGesture
+
+                        var pos = current
+                        // A turn counts from where the finger started, so the dot stays under it.
+                        var last = if (kind == KnobDrag.TURN) from else first.position - over
+                        val slideSpan = dragSpan.toPx()
+                        fun follow(c: PointerInputChange) {
+                            val to = c.position
+                            val delta = when (kind) {
+                                KnobDrag.TURN -> turnDegrees(last - centre, to - centre, radius * TURN_MIN_FRACTION) / SWEEP_DEG * span
+                                KnobDrag.UP_DOWN -> (last.y - to.y) / slideSpan * span
+                                KnobDrag.SIDEWAYS -> (to.x - last.x) / slideSpan * span
+                            }
+                            last = to
+                            // Past an end the knob stops, and comes straight back.
+                            pos = (pos + delta).coerceIn(range)
+                            val v = stick(pos, default, span * DETENT_FRACTION)
+                            haptics.drag(v, default, range)
+                            change(v)
+                        }
+
+                        dragging = true
+                        haptics.begin(current)
+                        try {
+                            follow(first)
+                            drag(first.id) { c ->
+                                c.consume()
+                                follow(c)
+                            }
+                        } finally {
+                            dragging = false
+                        }
                     }
                 }
                 .pointerInput(enabled, default) {
@@ -154,8 +192,10 @@ fun Knob(
             Canvas(Modifier.size(size)) {
                 val stroke = (5.5f + 1.5f * active).dp.toPx()
                 val inset = 4.5.dp.toPx() + 1.dp.toPx()
-                val arcSize = Size(this.size.width - 2 * inset, this.size.height - 2 * inset)
-                val topLeft = Offset(inset, inset)
+                // Round even when a narrow cell squeezes the dial.
+                val diameter = this.size.minDimension - 2 * inset
+                val arcSize = Size(diameter, diameter)
+                val topLeft = Offset((this.size.width - diameter) / 2, (this.size.height - diameter) / 2)
                 val round = Stroke(stroke, cap = StrokeCap.Round)
                 drawArc(colors.track, START_DEG, SWEEP_DEG, false, topLeft, arcSize, style = round)
 
