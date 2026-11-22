@@ -140,12 +140,16 @@ data class AudioFlingerDump(
             val idIndex = tokens.indexOfFirst { it.range.last == idEnd }
             if (idIndex < 0) return null
             val id = tokens[idIndex].value.toIntOrNull() ?: return null
-            val active = when (at("Active")) {
+            val activeEnd = columns["Active"] ?: return null
+            val activeIndex = tokens.indexOfFirst { it.range.last == activeEnd }
+            val active = when (tokens.getOrNull(activeIndex)?.value) {
                 "yes" -> true
                 "no" -> false
                 else -> return null
             }
-            val client = at("Client")?.toIntOrNull() ?: return null
+            // The client's pid follows: Android 16 prints "pid/ uid" under "Client(pid/uid)", which
+            // does not line up with the header word.
+            val client = tokens.getOrNull(activeIndex + 1)?.value?.substringBefore('/')?.toIntOrNull() ?: return null
             val session = at("Session")?.toIntOrNull() ?: return null
             val lead = tokens.subList(0, idIndex).map { it.value }
             val track = Track(id, active, lead.any { FAST_INDEX.matches(it) }, client, session, at("ST")?.toIntOrNull())

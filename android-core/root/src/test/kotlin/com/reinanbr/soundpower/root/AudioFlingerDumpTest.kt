@@ -94,6 +94,24 @@ class AudioFlingerDumpTest {
         assertTrue(d.soundPowerInstances.isEmpty())
     }
 
+    /** An Android 16 emulator: the track table gains port, volume and bit-perfect columns. */
+    @Test
+    fun android16() {
+        val d = AudioFlingerDump.parse(fixture("audioflinger_android16.txt"))
+        assertEquals("android.uid.shell", d.processes[19927])
+        assertEquals(listOf(13, 21), d.threads.map { it.io })
+        val primary = d.threads[0]
+        assertEquals(listOf(56, 55, 57), primary.tracks.map { it.id })
+        assertEquals(listOf(32977, 32969, 32985), primary.tracks.map { it.session })
+        assertEquals(listOf(19927, 15450, 20127), primary.tracks.map { it.clientPid })
+        assertEquals(listOf(true, false, true), primary.tracks.map { it.active })
+        assertEquals(listOf(3, 1, 3), primary.tracks.map { it.streamType })
+        val mix = primary.chain(0)!!.effects.single()
+        assertEquals("Dynamics Processing", mix.name)
+        assertTrue(mix.enabled)
+        assertEquals(18837, mix.clientPid)
+    }
+
     @Test
     fun fastAndPatchTracks() {
         val header = "    Type     Id Active Client Session Port Id S  Flags"
