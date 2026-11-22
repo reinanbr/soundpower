@@ -105,6 +105,9 @@ struct StreamVolume {
     bool apply = false;  ///< false: the mixer applied the volume already, the chain applies none
     double left = 1.0;
     double right = 1.0;  ///< second channel; a mono stream uses the larger of the two
+    /// With `apply`: apply it at the chain's input instead, where the mixer would have, so the
+    /// stream sounds as without direct volume control (a player left out of it).
+    bool atInput = false;
 
     bool operator==(const StreamVolume&) const = default;
 };

@@ -41,8 +41,9 @@ struct RtParams {
 /// limiter, and the stage gives back the headroom auto-preamp took whenever the volume leaves
 /// room for it: its gain is min(volume · cut, 1) per unit of volume, where `cut` is the
 /// auto-preamp attenuation. So the EQ boost is heard in full below the volume where it would
-/// clip, and the peak never exceeds what auto-preamp alone allows. The dry path gets the plain
-/// volume.
+/// clip, and the peak never exceeds what auto-preamp alone allows. With `atInput` the volume is
+/// applied to the input instead, as the mixer would without direct volume control, with no
+/// give-back; moving it between the two places ramps both. The dry path gets the plain volume.
 ///
 /// Threading contract:
 ///  - prepare() is control-side and must never run concurrently with process().
@@ -107,8 +108,8 @@ public:
     /// `instant` (use it for the first block of a stream, which must not ramp from unity).
     void setStreamVolume(const StreamVolume& volume, bool instant = false) noexcept;
 
-    /// Gain of the volume stage on the first channel over the last block (1 without direct
-    /// volume control), for status reports.
+    /// Gain of the volume stage on the first channel over the last block, at the input or
+    /// before the limiter (1 without direct volume control), for status reports.
     [[nodiscard]] float volumeStageGain() const noexcept {
         return volumeStageGain_.load(std::memory_order_relaxed);
     }
@@ -175,6 +176,7 @@ private:
     LimiterDesign pendingLimiter_{};
     Limiter limiter_;
     StreamVolume streamVolume_{};
+    std::array<LinearRamp, kMaxChannels> volumeIn_{};   ///< at the input (StreamVolume::atInput)
     std::array<LinearRamp, kMaxChannels> volumeWet_{};  ///< before the limiter
     std::array<LinearRamp, kMaxChannels> volumeDry_{};  ///< on the dry path
 

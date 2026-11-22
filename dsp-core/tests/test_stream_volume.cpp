@@ -207,6 +207,61 @@ TEST(StreamVolume, VolumesAreClampedToUnity) {
     EXPECT_EQ(tailPeak(run(silent, in), 2, kTail), 0.0);
 }
 
+TEST(StreamVolume, AtTheInputItSoundsAsIfTheMixerAppliedIt) {
+    // A compressor that works hard makes the place of the volume audible: at the input it sees
+    // the attenuated signal, as without direct volume control, and nothing is given back.
+    ChainParams params = boost12();
+    params.compressor.enabled = true;
+    params.compressor.thresholdDb = -30.0;
+    params.compressor.ratio = 4.0;
+    const double volume = 0.3;
+    const std::vector<float> in = test::whiteNoise(0.4, kFrames * 2, 11);
+    std::vector<float> attenuated = in;
+    for (float& x : attenuated) x = static_cast<float>(static_cast<double>(x) * volume);
+
+    Processor mixer;
+    setUp(mixer, params);
+    const std::vector<float> expected = run(mixer, attenuated);
+
+    Processor input;
+    setUp(input, params);
+    input.setStreamVolume({true, volume, volume, /*atInput=*/true}, /*instant=*/true);
+    const std::vector<float> out = run(input, in);
+    ASSERT_EQ(out.size(), expected.size());
+    double worst = 0.0;
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        worst = std::max(worst, std::fabs(static_cast<double>(out[i]) - static_cast<double>(expected[i])));
+    }
+    EXPECT_LT(worst, 1e-5);
+    EXPECT_NEAR(input.volumeStageGain(), volume, 1e-6);
+
+    // Before the limiter, the same volume sounds different through that compressor.
+    Processor before;
+    setUp(before, params);
+    before.setStreamVolume({true, volume, volume}, /*instant=*/true);
+    EXPECT_GT(tailPeak(run(before, in), 2, kTail), tailPeak(out, 2, kTail) * 1.2);
+}
+
+TEST(StreamVolume, MovingItToTheInputRamps) {
+    // With +12 dB and auto-preamp, the volume before the limiter gives 4x back; at the input it
+    // gives nothing back, so the level drops by 12 dB: smoothly.
+    const std::vector<float> in = test::sine(100.0, kFs, 0.5, kFrames, 2);
+    Processor p;
+    setUp(p, boost12());
+    p.setStreamVolume({true, 0.2, 0.2}, /*instant=*/true);
+    std::vector<float> out = in;
+    const std::size_t half = kFrames / 2;
+    p.process(out.data(), out.data(), half);
+    p.setStreamVolume({true, 0.2, 0.2, /*atInput=*/true});
+    p.process(out.data() + half * 2, out.data() + half * 2, kFrames - half);
+    // The 1 kHz band barely touches 100 Hz, and auto-preamp cuts 12 dB: the sine leaves at
+    // about 0.5 · 0.8 / 4 = 0.1 before and 0.5 · 0.2 / 4 = 0.025 after. Its own slope is at most
+    // 0.0013 per sample; a step at its peak would jump by 0.075.
+    EXPECT_LT(test::maxStep(out, 2, 0, 100), 0.004);
+    const double cut = dbToGain(-12.0);
+    EXPECT_NEAR(tailPeak(out, 2, kTail), 0.5 * 0.2 * cut, 0.5 * 0.2 * cut * 0.05);
+}
+
 TEST(StreamVolume, SettingsBeforePrepareAreAppliedThere) {
     Processor p;
     p.setParams(flat());

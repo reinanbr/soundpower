@@ -166,6 +166,7 @@ void Processor::setStreamVolume(const StreamVolume& volume, bool instant) noexce
 void Processor::updateVolumeTargets(bool instant) noexcept {
     const std::size_t nch = channels_;
     if (nch == 0) return;
+    std::array<double, kMaxChannels> input{1.0, 1.0};
     std::array<double, kMaxChannels> wet{1.0, 1.0};
     std::array<double, kMaxChannels> dry{1.0, 1.0};
     if (streamVolume_.apply) {
@@ -176,15 +177,23 @@ void Processor::updateVolumeTargets(bool instant) noexcept {
         const double restore = loudest > 0.0 ? std::min(current_.autoPreampCut, 1.0 / loudest)
                                              : current_.autoPreampCut;
         for (std::size_t ch = 0; ch < nch; ++ch) {
-            wet[ch] = v[ch] * restore;
+            if (streamVolume_.atInput) {
+                input[ch] = v[ch];
+            } else {
+                wet[ch] = v[ch] * restore;
+            }
             dry[ch] = v[ch];
         }
     }
     for (std::size_t ch = 0; ch < nch; ++ch) {
         if (instant) {
+            volumeIn_[ch].reset(input[ch]);
             volumeWet_[ch].reset(wet[ch]);
             volumeDry_[ch].reset(dry[ch]);
         } else {
+            if (volumeIn_[ch].target() != input[ch]) {
+                volumeIn_[ch].setTarget(input[ch], volumeRampFrames_);
+            }
             if (volumeWet_[ch].target() != wet[ch]) {
                 volumeWet_[ch].setTarget(wet[ch], volumeRampFrames_);
             }
@@ -227,6 +236,16 @@ void Processor::processBlock(const float* in, float* out, std::size_t frames) no
             dry_[ch][f] = dryDelay_[ch][readPos];
         }
         dryPos_ = dryPos_ + 1 == dryCapacity_ ? 0 : dryPos_ + 1;
+    }
+
+    // ---- Stream volume at the input (a stream left out of direct volume control) ------------
+    for (std::size_t ch = 0; ch < nch; ++ch) {
+        LinearRamp& g = volumeIn_[ch];
+        if (g.ramping()) {
+            for (std::size_t f = 0; f < frames; ++f) wetA_[ch][f] *= g.next();
+        } else if (const double v = g.current(); v != 1.0) {
+            for (std::size_t f = 0; f < frames; ++f) wetA_[ch][f] *= v;
+        }
     }
 
     // ---- Preamp + parametric EQ --------------------------------------------------------------
@@ -343,7 +362,8 @@ void Processor::processBlock(const float* in, float* out, std::size_t frames) no
 
     limiterGrDb_.store(static_cast<float>(gainToDb(limiter_.takeMinGain())),
                        std::memory_order_relaxed);
-    volumeStageGain_.store(static_cast<float>(volumeWet_[0].current()), std::memory_order_relaxed);
+    volumeStageGain_.store(static_cast<float>(volumeIn_[0].current() * volumeWet_[0].current()),
+                           std::memory_order_relaxed);
 }
 
 }  // namespace sp::dsp
