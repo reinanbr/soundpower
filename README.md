@@ -18,6 +18,37 @@ features (see [the mode without root](docs/architecture.md#mode-without-root)).
 > direct outputs bypass software effects; see [risks](docs/risks.md)), and the app changes it
 > live.
 
+## Download
+
+CI builds, signs and publishes the app on the [Releases page](https://github.com/reinanbr/soundpower/releases):
+
+| Build | App | Magisk module |
+|---|---|---|
+| [Development build](https://github.com/reinanbr/soundpower/releases/tag/nightly), rebuilt from `main` on every push | [`soundpower.apk`](https://github.com/reinanbr/soundpower/releases/download/nightly/soundpower.apk) | [`soundpower-magisk-module.zip`](https://github.com/reinanbr/soundpower/releases/download/nightly/soundpower-magisk-module.zip) |
+| [Latest release](https://github.com/reinanbr/soundpower/releases/latest), from a `v<version>` tag | [`soundpower.apk`](https://github.com/reinanbr/soundpower/releases/latest/download/soundpower.apk) | [`soundpower-magisk-module.zip`](https://github.com/reinanbr/soundpower/releases/latest/download/soundpower-magisk-module.zip) |
+
+The app needs Android 9 or newer and works with or without root. With root (Magisk 24 or newer)
+it installs the module itself, so the zip is only for flashing from the Magisk app. Both kinds of
+build are signed with the same key and update over each other; its SHA-256 certificate digest is
+`ff5e04731ee8bfc092138ecdaa866bc9adf730185324476edd0b6745990e7027`
+(`apksigner verify --print-certs soundpower.apk`). An APK built locally is signed with a
+different key, so Android refuses to install one over the other: export the settings from the
+menu, uninstall, install the other build and import them.
+
+## Screenshots
+
+**Without root**: moto g35 5G, Android 15, driving Android's Dynamics Processing effect.
+
+| Parametric equalizer | Tone and dynamics | Presets | AutoEQ search | Menu |
+|---|---|---|---|---|
+| <img src="docs/screenshots/rootless-equalizer.png" width="160" alt="Parametric equalizer with ten bands, preamp fader, bass and treble knobs"> | <img src="docs/screenshots/rootless-effects.png" width="160" alt="Tone, balance and compressor controls"> | <img src="docs/screenshots/rootless-presets.png" width="160" alt="Preset list with filters and built-in presets"> | <img src="docs/screenshots/rootless-autoeq.png" width="160" alt="AutoEQ results for a headphone search"> | <img src="docs/screenshots/rootless-menu.png" width="160" alt="Menu with band configuration, presets and engine mode"> |
+
+**With root**: Samsung Galaxy S9, LineageOS 19.1, with SoundPower's own effect in the audio HAL.
+
+| Parametric equalizer | Tone and dynamics | Limiter and direct volume | Setup and status | Menu |
+|---|---|---|---|---|
+| <img src="docs/screenshots/root-equalizer.png" width="160" alt="Parametric equalizer with eleven bands"> | <img src="docs/screenshots/root-effects.png" width="160" alt="Tone, stereo width, mono and compressor controls"> | <img src="docs/screenshots/root-direct-volume.png" width="160" alt="Limiter and direct volume control with a media volume knob"> | <img src="docs/screenshots/root-setup.png" width="160" alt="Setup status: root, Magisk, module and loaded audio effect"> | <img src="docs/screenshots/root-menu.png" width="160" alt="Menu with setup and status entry"> |
+
 ## Repository layout
 
 | Path | Contents |
@@ -107,6 +138,14 @@ magisk-module/build.sh                  # the app bundles out/soundpower-module-
 ./gradlew lintDebug assembleDebug       # app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+`./gradlew assembleRelease` makes the minified release APK. It is signed when
+`SP_SIGNING_PROPERTIES` names a properties file with `storeFile`, `storePassword`, `keyAlias` and
+`keyPassword` (`app-release.apk`), and left unsigned otherwise (`app-release-unsigned.apk`). CI
+signs it on pushes with four repository secrets: `SP_KEYSTORE_BASE64` (the keystore, in base64),
+`SP_KEYSTORE_PASSWORD`, `SP_KEY_ALIAS` and `SP_KEY_PASSWORD` (no backslashes in the passwords).
+Its `release` job then publishes the APK and the module zip: each push to `main` replaces the
+`nightly` pre-release, and pushing a `v<version>` tag that matches `VERSION` makes a release.
 
 On first launch the app asks how it should work. **With root** it asks for root, offers to install
 the bundled module, and asks for a reboot. Once the effect is loaded, it opens the equalizer.
