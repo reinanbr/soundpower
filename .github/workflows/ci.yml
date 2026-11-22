@@ -292,8 +292,8 @@ jobs:
           fi
           echo "$apksigner $("$apksigner" version):"
           printf '%s\n' "$certs"
-          # "Signer #1 certificate ..." or "Signer (minSdkVersion=...) certificate ...".
-          cert=$(printf '%s\n' "$certs" | sed -n 's/^Signer.* certificate SHA-256 digest: //p' | head -n 1)
+          # "Signer #1 certificate ..." (build tools 36) or "V2 Signer: certificate ..." (37).
+          cert=$(printf '%s\n' "$certs" | sed -n 's/^.*Signer.* certificate SHA-256 digest: //p' | head -n 1)
           [ -n "$cert" ] || echo "::warning::No certificate digest in the apksigner output."
           {
             echo "Built from ${GITHUB_SHA:0:7} on $(date -u '+%Y-%m-%d %H:%M UTC')."
