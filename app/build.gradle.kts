@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -8,6 +10,14 @@ plugins {
 // that magisk-module/build.sh made from the same tree.
 val spVersion = providers.fileContents(rootProject.layout.projectDirectory.file("VERSION")).asText.get().trim()
 val spVersionCode = spVersion.split('.').map(String::toInt).let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
+
+// Release signing: SP_SIGNING_PROPERTIES names a properties file with storeFile, storePassword,
+// keyAlias and keyPassword (CI writes one from the repository secrets). Without it the release
+// APK is left unsigned.
+val spSigning: Properties? = providers.environmentVariable("SP_SIGNING_PROPERTIES").orNull?.let { path ->
+    val text = providers.fileContents(objects.fileProperty().fileValue(File(path))).asText.get()
+    Properties().apply { load(text.reader()) }
+}
 
 android {
     namespace = "com.reinanbr.soundpower"
@@ -25,8 +35,20 @@ android {
         buildConfigField("int", "MODULE_VERSION_CODE", "$spVersionCode")
     }
 
+    signingConfigs {
+        spSigning?.let { props ->
+            create("release") {
+                storeFile = File(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
