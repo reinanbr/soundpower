@@ -282,9 +282,18 @@ jobs:
           cp "dist/module/soundpower-module-v$version.zip" upload/soundpower-magisk-module.zip
           (cd upload && sha256sum -- * > SHA256SUMS)
 
+          # Verifies the signature before publishing. apksigner runs the `java` on PATH, and the
+          # runner's default JDK 17 is too old for the newest build tools.
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)/apksigner
-          cert=$("$apksigner" verify --print-certs upload/soundpower.apk 2>/dev/null |
-            sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          if ! certs=$(PATH="$JAVA_HOME_21_X64/bin:$PATH" "$apksigner" verify --print-certs upload/soundpower.apk); then
+            echo "::error::$apksigner could not verify soundpower.apk; nothing published."
+            exit 1
+          fi
+          cert=$(printf '%s\n' "$certs" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          if [ -z "$cert" ]; then
+            echo "::error::No signer certificate in soundpower.apk; nothing published."
+            exit 1
+          fi
           {
             echo "Built from ${GITHUB_SHA:0:7} on $(date -u '+%Y-%m-%d %H:%M UTC')."
             echo
