@@ -129,6 +129,7 @@ dsp::StreamVolume Instance::streamVolume() const noexcept {
     };
     dsp::StreamVolume v;
     v.apply = volumeApplied();
+    v.atInput = volumeAtInput();
     v.left = gain(static_cast<std::uint32_t>(packed & 0xffffffffu));
     v.right = gain(static_cast<std::uint32_t>(packed >> 32));
     return v;

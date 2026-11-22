@@ -6,10 +6,12 @@
 // are (de)serialized field by field, so buffers need no particular alignment.
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 
+#include "soundpower/protocol.h"
 #include "sp/dsp/types.h"
 
 namespace sp::fx {
@@ -30,6 +32,28 @@ namespace sp::fx {
 /// -EINVAL if `id` is not settable or `out` is too small.
 [[nodiscard]] int encodeParam(std::uint32_t id, const dsp::ChainParams& params,
                               std::span<std::uint8_t> out) noexcept;
+
+/// INPUT_VOLUME_SESSIONS (1.3): the sessions that get the stream volume at the chain's input.
+struct InputVolumeSessions {
+    std::array<std::int32_t, SP_MAX_INPUT_VOLUME_SESSIONS> ids{};
+    std::uint32_t count = 0;
+
+    [[nodiscard]] bool contains(std::int32_t session) const noexcept {
+        for (std::uint32_t i = 0; i < count; ++i) {
+            if (ids[i] == session) return true;
+        }
+        return false;
+    }
+};
+
+/// Decodes an INPUT_VOLUME_SESSIONS payload (trailing bytes ignored). Returns 0, or -EINVAL for a
+/// short payload or more than SP_MAX_INPUT_VOLUME_SESSIONS sessions; `out` is left unchanged then.
+[[nodiscard]] int decodeInputVolumeSessions(std::span<const std::uint8_t> value,
+                                            InputVolumeSessions& out) noexcept;
+
+/// Encodes an INPUT_VOLUME_SESSIONS payload. Returns its size or -EINVAL if `out` is too small.
+[[nodiscard]] int encodeInputVolumeSessions(const InputVolumeSessions& sessions,
+                                            std::span<std::uint8_t> out) noexcept;
 
 /// PROTOCOL_INFO payload. Returns its size or -EINVAL if `out` is too small.
 [[nodiscard]] int encodeProtocolInfo(std::span<std::uint8_t> out) noexcept;

@@ -80,6 +80,14 @@ public:
     [[nodiscard]] bool volumeApplied() const noexcept {
         return volumeApplied_.load(std::memory_order_acquire);
     }
+    /// The session is left out of direct volume control (INPUT_VOLUME_SESSIONS): an applied
+    /// volume goes on at the chain's input, as the mixer would apply it.
+    void setVolumeAtInput(bool atInput) noexcept {
+        volumeAtInput_.store(atInput, std::memory_order_relaxed);
+    }
+    [[nodiscard]] bool volumeAtInput() const noexcept {
+        return volumeAtInput_.load(std::memory_order_relaxed);
+    }
     /// The last stream volume received, as linear gains (clamped to 0..1).
     [[nodiscard]] dsp::StreamVolume streamVolume() const noexcept;
 
@@ -142,6 +150,7 @@ private:
     std::atomic<std::uint32_t> device_{0};
     std::atomic<std::uint64_t> volume_{(std::uint64_t{1} << 24) | (std::uint64_t{1} << 56)};
     std::atomic<bool> volumeApplied_{false};
+    std::atomic<bool> volumeAtInput_{false};
 
     // Audio thread → control side.
     std::atomic<AudioState> audioState_{AudioState::Idle};

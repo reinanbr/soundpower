@@ -14,7 +14,7 @@ namespace {
 using test::golden;
 
 TEST(StateFile, EncodeMatchesGoldenVector) {
-    EXPECT_EQ(encodeStateFile(test::exampleParamsV12()), golden("state_file_v1_2"));
+    EXPECT_EQ(encodeStateFile(test::exampleParamsV12()), golden("state_file_v1_3"));
 }
 
 TEST(StateFile, AppliesTheProtocol12GoldenVector) {

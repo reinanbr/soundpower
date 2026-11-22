@@ -20,6 +20,7 @@ LIMITER = 0x0300
 TONE = 0x0400
 STEREO = 0x0500
 COMPRESSOR = 0x0600
+INPUT_VOLUME_SESSIONS = 0x0700
 
 PEAKING, LOW_SHELF, HIGH_SHELF, LOW_PASS, HIGH_PASS, NOTCH, BAND_PASS = range(7)
 
@@ -61,6 +62,10 @@ def status(sample_rate, channels, fmt, state, cpu_avg, cpu_peak, instances, sess
            limiter_gr, frames):
     return struct.pack("<IIIIffIiIfQ", sample_rate, channels, fmt, state, cpu_avg, cpu_peak,
                        instances, session, flags, limiter_gr, frames)
+
+
+def input_volume_sessions(sessions):
+    return struct.pack("<I" + "i" * len(sessions), len(sessions), *sessions)
 
 
 def state_file(entries, major=1, minor=0):
@@ -158,6 +163,21 @@ VECTORS = {
                     (TONE, tone(False, 7.5, 62.5, -3.0, 12000.0)),
                     (STEREO, stereo(True, -0.25, 1.5)),
                     (COMPRESSOR, compressor(True, -24.0, 4.5, 2.5, 400.0, 0.0, 6.0))], minor=2)),
+    "state_file_v1_3": (
+        "state.bin, protocol 1.3: state_file_v1_2 as a 1.3 writer stores it (INPUT_VOLUME_SESSIONS "
+        "is never persisted)",
+        state_file([(MASTER, master(False, True, 3.25, limiter_off=True, direct_volume=True)),
+                    (EQ_STATE, eq_state(THREE_BANDS)),
+                    (LIMITER, limiter(-3.0, 5.0, 250.0)),
+                    (TONE, tone(False, 7.5, 62.5, -3.0, 12000.0)),
+                    (STEREO, stereo(True, -0.25, 1.5)),
+                    (COMPRESSOR, compressor(True, -24.0, 4.5, 2.5, 400.0, 0.0, 6.0))], minor=3)),
+    "input_volume_sessions_example": (
+        "INPUT_VOLUME_SESSIONS (0x0700), protocol 1.3: sessions 1449, 33001 and 7",
+        input_volume_sessions([1449, 33001, 7])),
+    "input_volume_sessions_empty": (
+        "INPUT_VOLUME_SESSIONS (0x0700), protocol 1.3: no session",
+        input_volume_sessions([])),
     "status_example": (
         "STATUS (0x0002): 48 kHz, 2 ch, float (0x5), active, cpu avg 1.25 % peak 4.5 %, "
         "3 instances, session -7, flags 0x5, limiter -2.75 dB, 123456789012 frames",

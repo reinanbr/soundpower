@@ -24,7 +24,7 @@ extern "C" {
 /* ---- Versions ------------------------------------------------------------------------------ */
 
 #define SP_PROTOCOL_VERSION_MAJOR 1
-#define SP_PROTOCOL_VERSION_MINOR 2
+#define SP_PROTOCOL_VERSION_MINOR 3
 
 /* ---- Effect identity ----------------------------------------------------------------------- */
 
@@ -57,6 +57,7 @@ extern "C" {
 #define SP_MAX_BANDS 32
 #define SP_MAX_MESSAGE_BYTES 1024
 #define SP_MAX_INSTANCES 64 /* live effect instances per process */
+#define SP_MAX_INPUT_VOLUME_SESSIONS 32 /* INPUT_VOLUME_SESSIONS entries, since 1.3 */
 
 #define SP_FREQ_MIN_HZ 10.0f
 #define SP_FREQ_MAX_FS_RATIO 0.49f /* freq_hz is clamped to fs * this ratio */
@@ -114,6 +115,9 @@ enum sp_param_id {
     SP_PARAM_TONE = 0x0400,          /* SET / GET, since 1.1 */
     SP_PARAM_STEREO = 0x0500,        /* SET / GET, since 1.1 */
     SP_PARAM_COMPRESSOR = 0x0600,    /* SET / GET, since 1.1 */
+    /* SET / GET, since 1.3: sessions that get the stream volume at the chain's input under
+     * direct volume control. Process-wide like the rest, but never persisted. */
+    SP_PARAM_INPUT_VOLUME_SESSIONS = 0x0700,
     /* 0x1000 - 0x1FFF reserved for later modules (convolver, multiband compressor, ...) */
 };
 
@@ -134,6 +138,7 @@ enum sp_param_id {
 #define SP_CAP_LIMITER_SWITCH (1u << 12) /* SP_MASTER_FLAG_LIMITER_OFF, since 1.1 */
 #define SP_CAP_BAND_CHANNEL (1u << 13)   /* sp_band_t.channel, since 1.1 */
 #define SP_CAP_DIRECT_VOLUME (1u << 14)  /* SP_MASTER_FLAG_DIRECT_VOLUME, since 1.2 */
+#define SP_CAP_INPUT_VOLUME_SESSIONS (1u << 15) /* SP_PARAM_INPUT_VOLUME_SESSIONS, since 1.3 */
 
 /* ---- Band types (values match sp::dsp::FilterType) ----------------------------------------- */
 
@@ -280,6 +285,8 @@ typedef struct sp_compressor {
 #define SP_STEREO_SIZE 12u
 #define SP_COMPRESSOR_SIZE 28u
 #define SP_EQ_STATE_SIZE(count) (SP_EQ_STATE_HEADER_SIZE + SP_BAND_SIZE * (count))
+/* INPUT_VOLUME_SESSIONS: u32 count, then count i32 session IDs. */
+#define SP_INPUT_VOLUME_SESSIONS_SIZE(count) (4u + 4u * (count))
 
 #ifdef __cplusplus
 } /* extern "C" */
@@ -297,5 +304,7 @@ SP_STATIC_ASSERT(sizeof(sp_tone_t) == SP_TONE_SIZE, "TONE layout");
 SP_STATIC_ASSERT(sizeof(sp_stereo_t) == SP_STEREO_SIZE, "STEREO layout");
 SP_STATIC_ASSERT(sizeof(sp_compressor_t) == SP_COMPRESSOR_SIZE, "COMPRESSOR layout");
 SP_STATIC_ASSERT(SP_EQ_STATE_SIZE(SP_MAX_BANDS) <= SP_MAX_MESSAGE_BYTES, "EQ_STATE fits a message");
+SP_STATIC_ASSERT(SP_INPUT_VOLUME_SESSIONS_SIZE(SP_MAX_INPUT_VOLUME_SESSIONS) <= SP_MAX_MESSAGE_BYTES,
+                 "INPUT_VOLUME_SESSIONS fits a message");
 
 #endif /* SOUNDPOWER_PROTOCOL_H */

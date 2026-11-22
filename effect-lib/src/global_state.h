@@ -45,6 +45,7 @@ public:
     void destroyInstance(Instance* instance);
 
     /// SET_PARAM: decodes, clamps, stores and pushes to every instance. Returns 0 or -EINVAL.
+    /// INPUT_VOLUME_SESSIONS is kept apart from the parameters: it is never persisted.
     int setParam(std::uint32_t id, std::span<const std::uint8_t> value);
 
     /// GET_PARAM on behalf of `asking`. Returns the payload size, or -EINVAL for unknown IDs and
@@ -87,6 +88,7 @@ private:
 
     mutable std::mutex mutex_;
     dsp::ChainParams params_{};
+    InputVolumeSessions inputVolume_{};
     std::array<Instance*, SP_MAX_INSTANCES> instances_{};
     std::size_t count_ = 0;
 

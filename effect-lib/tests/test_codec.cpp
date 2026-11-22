@@ -128,7 +128,48 @@ TEST(Codec, ProtocolInfo) {
     EXPECT_EQ(info.max_bands, 32u);
     EXPECT_EQ(info.capabilities, SP_CAP_PARAMETRIC_EQ | SP_CAP_LIMITER | SP_CAP_TONE |
                                      SP_CAP_STEREO | SP_CAP_COMPRESSOR | SP_CAP_LIMITER_SWITCH |
-                                         SP_CAP_BAND_CHANNEL | SP_CAP_DIRECT_VOLUME);
+                                         SP_CAP_BAND_CHANNEL | SP_CAP_DIRECT_VOLUME |
+                                         SP_CAP_INPUT_VOLUME_SESSIONS);
+}
+
+TEST(Codec, InputVolumeSessionsMatchTheGoldenVectors) {
+    InputVolumeSessions s;
+    ASSERT_EQ(decodeInputVolumeSessions(golden("input_volume_sessions_example"), s), 0);
+    ASSERT_EQ(s.count, 3u);
+    EXPECT_TRUE(s.contains(1449));
+    EXPECT_TRUE(s.contains(33001));
+    EXPECT_TRUE(s.contains(7));
+    EXPECT_FALSE(s.contains(0));
+    std::array<std::uint8_t, SP_INPUT_VOLUME_SESSIONS_SIZE(3)> buf{};
+    ASSERT_EQ(encodeInputVolumeSessions(s, buf), static_cast<int>(buf.size()));
+    EXPECT_EQ(std::vector<std::uint8_t>(buf.begin(), buf.end()), golden("input_volume_sessions_example"));
+
+    ASSERT_EQ(decodeInputVolumeSessions(golden("input_volume_sessions_empty"), s), 0);
+    EXPECT_EQ(s.count, 0u);
+}
+
+TEST(Codec, InputVolumeSessionsAreBounded) {
+    InputVolumeSessions s;
+    s.ids[0] = 5;
+    s.count = 1;
+    // More than the limit, or fewer IDs than the count says: rejected, nothing changes.
+    std::vector<std::uint8_t> tooMany(SP_INPUT_VOLUME_SESSIONS_SIZE(SP_MAX_INPUT_VOLUME_SESSIONS + 1), 0);
+    tooMany[0] = SP_MAX_INPUT_VOLUME_SESSIONS + 1;
+    EXPECT_EQ(decodeInputVolumeSessions(tooMany, s), -EINVAL);
+    std::vector<std::uint8_t> short_ = golden("input_volume_sessions_example");
+    short_.resize(short_.size() - 1);
+    EXPECT_EQ(decodeInputVolumeSessions(short_, s), -EINVAL);
+    EXPECT_EQ(decodeInputVolumeSessions({}, s), -EINVAL);
+    ASSERT_EQ(s.count, 1u);
+    EXPECT_EQ(s.ids[0], 5);
+
+    // The full list fits a message; duplicates collapse.
+    std::vector<std::uint8_t> full(SP_INPUT_VOLUME_SESSIONS_SIZE(SP_MAX_INPUT_VOLUME_SESSIONS), 0);
+    full[0] = SP_MAX_INPUT_VOLUME_SESSIONS;
+    ASSERT_EQ(decodeInputVolumeSessions(full, s), 0);
+    EXPECT_EQ(s.count, 1u);  // 32 times session 0
+    std::array<std::uint8_t, 4> small{};
+    EXPECT_EQ(encodeInputVolumeSessions(s, small), -EINVAL);
 }
 
 TEST(Codec, EncodeFailsWhenTheBufferIsTooSmall) {

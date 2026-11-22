@@ -68,6 +68,7 @@ Instance* GlobalState::createInstance(std::int32_t sessionId, std::int32_t ioId)
         if (sameStream(*instances_[i], *instance) && !instances_[i]->duplicate()) duplicate = true;
     }
     instance->setDuplicateLocked(duplicate);
+    instance->setVolumeAtInput(inputVolume_.contains(sessionId));
     instances_[count_++] = instance;
     if (duplicate) {
         log::warn("session %d (io %d) already has a SoundPower instance; the new one passes audio "
@@ -107,6 +108,16 @@ void GlobalState::destroyInstance(Instance* instance) {
 }
 
 int GlobalState::setParam(std::uint32_t id, std::span<const std::uint8_t> value) {
+    if (id == SP_PARAM_INPUT_VOLUME_SESSIONS) {
+        std::lock_guard lock(mutex_);
+        if (const int status = decodeInputVolumeSessions(value, inputVolume_); status != 0) {
+            return status;
+        }
+        for (std::size_t i = 0; i < count_; ++i) {
+            instances_[i]->setVolumeAtInput(inputVolume_.contains(instances_[i]->sessionId()));
+        }
+        return 0;
+    }
     if (!isSettable(id)) return -EINVAL;
     std::lock_guard lock(mutex_);
     dsp::ChainParams next = params_;
@@ -123,6 +134,10 @@ int GlobalState::getParam(Instance& asking, std::uint32_t id, std::span<std::uin
         case SP_PARAM_STATUS: {
             if (out.size() < SP_STATUS_SIZE) return -EINVAL;  // don't consume the peak/flags
             return encodeStatus(status(asking), out);
+        }
+        case SP_PARAM_INPUT_VOLUME_SESSIONS: {
+            std::lock_guard lock(mutex_);
+            return encodeInputVolumeSessions(inputVolume_, out);
         }
         default: {
             if (!isSettable(id)) return -EINVAL;

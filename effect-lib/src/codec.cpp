@@ -275,6 +275,30 @@ std::uint32_t packedLibraryVersion() noexcept {
            std::uint32_t{SP_VERSION_PATCH};
 }
 
+int decodeInputVolumeSessions(std::span<const std::uint8_t> value,
+                              InputVolumeSessions& out) noexcept {
+    wire::Reader r(value);
+    const auto count = r.read<std::uint32_t>();
+    if (!r.ok() || count > SP_MAX_INPUT_VOLUME_SESSIONS) return -EINVAL;
+    InputVolumeSessions next;
+    for (std::uint32_t i = 0; i < count; ++i) {
+        const auto id = r.read<std::int32_t>();
+        if (!r.ok()) return -EINVAL;
+        // Duplicates are dropped, so the list stays a set.
+        if (!next.contains(id)) next.ids[next.count++] = id;
+    }
+    out = next;
+    return 0;
+}
+
+int encodeInputVolumeSessions(const InputVolumeSessions& sessions,
+                              std::span<std::uint8_t> out) noexcept {
+    wire::Writer w(out);
+    w.write(sessions.count);
+    for (std::uint32_t i = 0; i < sessions.count; ++i) w.write(sessions.ids[i]);
+    return finish(w);
+}
+
 int encodeProtocolInfo(std::span<std::uint8_t> out) noexcept {
     wire::Writer w(out);
     w.write(std::uint16_t{SP_PROTOCOL_VERSION_MAJOR});
@@ -283,7 +307,7 @@ int encodeProtocolInfo(std::span<std::uint8_t> out) noexcept {
     w.write(std::uint32_t{SP_MAX_BANDS});
     w.write(std::uint32_t{SP_CAP_PARAMETRIC_EQ | SP_CAP_LIMITER | SP_CAP_TONE | SP_CAP_STEREO |
                           SP_CAP_COMPRESSOR | SP_CAP_LIMITER_SWITCH | SP_CAP_BAND_CHANNEL |
-                          SP_CAP_DIRECT_VOLUME});
+                          SP_CAP_DIRECT_VOLUME | SP_CAP_INPUT_VOLUME_SESSIONS});
     return finish(w);
 }
 

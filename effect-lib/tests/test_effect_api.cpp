@@ -627,9 +627,52 @@ TEST_F(DirectVolume, DumpShowsTheVolume) {
     ::close(fds[0]);
     EXPECT_NE(std::strstr(text, "flags 0x18"), nullptr) << text;  // claimed and applied
     EXPECT_NE(std::strstr(text, "volume -12.0/-12.0 dB applied (stage -12.0 dB), "
-                                "peak in -8.0 out -20.0 dBFS"),
+                                "peak in -8.0 out -20.0 dBFS, volume stage output"),
               nullptr)
         << text;
+}
+
+/// The effect's DUMP line.
+std::string dumpLine(Effect& e) {
+    int fds[2];
+    EXPECT_EQ(::pipe(fds), 0);
+    std::vector<std::uint8_t> cmd(4);
+    std::memcpy(cmd.data(), &fds[1], 4);
+    EXPECT_EQ((*e.h)->command(e.h, EFFECT_CMD_DUMP, 4, cmd.data(), nullptr, nullptr), 0);
+    ::close(fds[1]);
+    char text[1024] = {};
+    EXPECT_GT(::read(fds[0], text, sizeof(text) - 1), 0);
+    ::close(fds[0]);
+    return text;
+}
+
+TEST_F(DirectVolume, ASessionLeftOutGetsTheVolumeAtTheInput) {
+    Effect e = createRunning(39);
+    Effect other = createRunning(40);
+    // Session 39 is left out; the list also names a session with no instance yet.
+    const std::vector<std::uint8_t> sessions = {2, 0, 0, 0, 39, 0, 0, 0, 41, 0, 0, 0};
+    ASSERT_EQ(e.setParam(SP_PARAM_INPUT_VOLUME_SESSIONS, sessions), 0);
+    std::vector<std::uint8_t> v;
+    ASSERT_EQ(e.getParam(SP_PARAM_INPUT_VOLUME_SESSIONS, v), 0);
+    EXPECT_EQ(v, sessions);
+    // The mixer is still told to apply nothing: the reply never changes, so AudioFlinger need
+    // not ask again when a session moves in or out of the list.
+    EXPECT_EQ(controllerVolume(e, kQuarter, kQuarter), kUnity);
+    EXPECT_EQ(controllerVolume(other, kQuarter, kQuarter), kUnity);
+    EXPECT_NEAR(tailPeak(play(e, 0.4), 960), 0.1, 1e-3);
+    EXPECT_NE(dumpLine(e).find("volume stage input"), std::string::npos) << dumpLine(e);
+    EXPECT_NE(dumpLine(other).find("volume stage output"), std::string::npos);
+    Effect later = create(41);
+    EXPECT_NE(dumpLine(later).find("volume stage input"), std::string::npos);
+
+    // An empty list puts every session back; the stored parameters never changed.
+    ASSERT_EQ(e.setParam(SP_PARAM_INPUT_VOLUME_SESSIONS, {0, 0, 0, 0}), 0);
+    EXPECT_NE(dumpLine(e).find("volume stage output"), std::string::npos);
+    EXPECT_NE(dumpLine(later).find("volume stage output"), std::string::npos);
+    ASSERT_EQ(e.getParam(SP_PARAM_MASTER, v), 0);
+    EXPECT_EQ(v[0], 0x0a);
+    // Malformed: rejected, the list stays as it was.
+    EXPECT_EQ(e.setParam(SP_PARAM_INPUT_VOLUME_SESSIONS, {1, 0, 0, 0}), -EINVAL);
 }
 
 TEST_F(EffectApi, ProcessValidatesBuffers) {

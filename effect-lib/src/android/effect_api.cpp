@@ -281,7 +281,7 @@ std::int32_t dump(ModuleState& s, std::uint32_t cmdSize, const void* cmd) {
             "SoundPower %u.%u.%u (protocol %d.%d): session %d io %d, %s, %u Hz, %u ch, "
             "format 0x%x, cpu avg %.2f%% peak %.2f%%, limiter %.2f dB, %" PRIu64
             " frames, flags 0x%x, %u instances, volume %.1f/%.1f dB %s (stage %.1f dB), "
-            "peak in %.1f out %.1f dBFS\n",
+            "peak in %.1f out %.1f dBFS, volume stage %s\n",
             unsigned{SP_VERSION_MAJOR}, unsigned{SP_VERSION_MINOR}, unsigned{SP_VERSION_PATCH},
             SP_PROTOCOL_VERSION_MAJOR, SP_PROTOCOL_VERSION_MINOR, st.sessionId,
             s.instance->ioId(), stateName(st.state), st.sampleRate, st.channels, st.format,
@@ -289,7 +289,7 @@ std::int32_t dump(ModuleState& s, std::uint32_t cmdSize, const void* cmd) {
             static_cast<double>(st.limiterGrDb), st.framesProcessed, st.flags, st.instances,
             dumpDb(dsp::gainToDb(v.volume.left)), dumpDb(dsp::gainToDb(v.volume.right)),
             v.volume.apply ? "applied" : "by mixer", dumpDb(v.stageGainDb), dumpDb(v.inputPeakDb),
-            dumpDb(v.outputPeakDb));
+            dumpDb(v.outputPeakDb), v.volume.atInput ? "input" : "output");
     return 0;
 }
 
