@@ -39,7 +39,9 @@ else
     echo "policy: soundpower_data_file NOT LOADED (the audio HAL cannot read the saved state)"
 fi
 ls -ldZ "$SP_DATA_DIR" 2>&1
-ls -lZ "$SP_DATA_DIR" 2>&1 | grep -v '^total'
+for sp_file in "$SP_DATA_DIR"/*; do
+    if [ -e "$sp_file" ]; then ls -ldZ "$sp_file"; fi
+done
 
 echo "== SELinux denials"
 { dmesg 2>/dev/null; logcat -d -b all 2>/dev/null; } | grep 'avc: *denied' |
