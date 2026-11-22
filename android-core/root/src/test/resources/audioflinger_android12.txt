@@ -1,0 +1,368 @@
+Libraries NOT loaded:
+Libraries loaded:
+ Library soundpower
+  path: /vendor/lib/soundfx/libsoundpower.so
+  SoundPower / SoundPower contributors
+    UUID: 23e79ffb-ab65-4cd7-a768-b493ded3fabe
+    TYPE: 69dc09f7-12a9-471d-89a1-603608c452c9
+    apiVersion: 00020000
+    flags: 00000250
+ Library offload
+  path: /vendor/lib/soundfx/libaudioeffectoffload.so
+  (no effects)
+XML effect configuration loaded successfully.
+Clients:
+  pid: 1693
+  pid: 2925
+  pid: 11541
+  pid: 11543
+  pid: 24582
+Notification Clients:
+   pid    uid  name
+  1378   1013  media
+  1693   1000  android.uid.system
+  2925  10084  com.example.soundfx
+  7921  10094  android.uid.systemui
+ 11541  10112  com.example.player
+ 11543  10122  com.reinanbr.soundpower
+ 24582   1041  audioserver
+Global session refs:
+  session  cnt     pid    uid  name
+     1449    4    2925  10084  com.example.soundfx
+     1569    1   11543  10122  com.reinanbr.soundpower
+     1449    1   11541  10112  com.example.player
+     1449    1   24582   1041  audioserver
+Hardware status: 0
+Standby Time mSec: 3000
+
+Output thread 0x743ba8ea60, name AudioOut_D, tid 24651, type 0 (MIXER):
+  I/O handle: 13
+  Standby: no
+  Sample rate: 48000 Hz
+  HAL frame count: 960
+  HAL format: 0x1 (AUDIO_FORMAT_PCM_16_BIT)
+  HAL buffer size: 3840 bytes
+  Channel count: 2
+  Channel mask: 0x00000003 (front-left, front-right)
+  Processing format: 0x1 (AUDIO_FORMAT_PCM_16_BIT)
+  Processing frame size: 4 bytes
+  Pending config events: none
+  Output devices: 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+  Input device: 0 (AUDIO_DEVICE_NONE)
+  Audio source: 0 (AUDIO_SOURCE_DEFAULT)
+  Timestamp stats: n=44504 disc=16 cold=0 nRdy=0 err=3 rate=1 jitterMs(ave=-0.00177032 std=2.67411 min=-7.5262 max=7.15286) localSR(48001.6, 1.11085e-06) correctedJitterMs(ave=2.29502e-05 std=0.041078 min=-3.50672 max=0.839115)
+  Timestamp corrected: no
+  Last write occurred (msecs): 30
+  Process time ms stats: ave=5.60291 std=1.58901 min=1.70953 max=15.4292
+  Hal write jitter ms stats: ave=-0.0125506 std=3.81911 min=-10.3152 max=10.5666
+  Threadloop write latency stats: ave=122.317 std=4.48749 min=109.04 max=131.124
+  Master volume: 1.000000
+  Master mute: off
+  Mixer channel Mask: 0x3 (front-left, front-right)
+  Normal frame count: 960
+  Total writes: 44509
+  Delayed writes: 0
+  Blocked in write: yes
+  Suspend count: 0
+  Sink buffer : 0x72e2a9e020
+  Mixer buffer: 0x7312aa6440
+  Effect buffer: 0x7312aa8640
+  Fast track availMask=0xfe
+  Standby delay ns=3000000000
+  AudioStreamOut: 0x71e2a9d7b0 flags 0xa (AUDIO_OUTPUT_FLAG_PRIMARY|AUDIO_OUTPUT_FLAG_DEEP_BUFFER)
+  Frames written: 42728640
+  Suspended frames: 0
+  Hal stream dump:
+Audio Stream Out::dump
+      Mutex: unlocked
+      Standby: false
+      PCM Device Id: 0
+      Devices: 8
+      Muted: false
+      Non Blocking: 0
+      Playback Started: 0
+      offload_state: 0
+      offload_thread blocked: false
+      mHandle: 13
+      Standby: no
+      Frames written: 42728640
+      Errors: 0
+
+  Thread throttle time (msecs): 69
+  AudioMixer tracks: 66 
+  Master mono: off
+  Master balance: 0.000000 (balance 0 channelCount 2 volumes: 1 1)
+  No FastMixer
+  Stream volumes in dB: 0:-21, 1:-27, 2:-20, 3:-11, 4:-14, 5:-20, 6:-inf, 7:-27, 8:-21, 9:0, 10:-12, 11:-11, 12:0, 13:0, 14:0
+  Normal mixer raw underrun counters: partial=0 empty=0
+  1 Tracks of which 1 are active
+    Type     Id Active Client Session Port Id S  Flags   Format Chn mask  SRate ST Usg CT  G db  L dB  R dB  VS dB   Server FrmCnt  FrmRdy F Underruns  Flushed   Latency
+             66    yes  11541    1449      25 A  0x000 00000001 00000003  48000  3   1  2   -11     0     0     0  00809940  15392   13472 A         0        0  403.48 t
+  2 Effect Chains
+    1 effects for session 1569
+	In buffer    Out buffer                     Active tracks:
+	0x743b963000   0x743b965000 -> 0x7312aa8640   0
+	Effect ID 75:
+		Session State Registered Enabled Suspended:
+		01569   000   y          n       n
+		Descriptor:
+		- UUID: 23e79ffb-ab65-4cd7-a768-b493ded3fabe
+		- TYPE: 69dc09f7-12a9-471d-89a1-603608c452c9
+		- apiVersion: 00000000
+		- flags: 00000250 (conn. mode: insert, insert pref: last, volume mgmt: implements control, device indication: requires updates, input mode: not set, output mode: not set)
+		- name: SoundPower
+		- implementor: SoundPower contributors
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			11543        0  yes    yes      0      0
+		Status Engine:
+		000    0x71e2a9eef0
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743b963000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743b965000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0x743b963000) InConversion(nullptr) Out(0x743b965000 -> 0x7312aa8640) OutConversion(nullptr)
+	Effect ID 75 HAL dump:
+SoundPower 0.3.0 (protocol 1.2): session 1569 io 13, initialized, 48000 Hz, 2 ch, format 0x5, cpu avg 0.00% peak 0.00%, limiter 0.00 dB, 0 frames, flags 0x8, 2 instances, volume 0.0/0.0 dB by mixer (stage 0.0 dB), peak in -999.0 out -999.0 dBFS
+    5 effects for session 1449
+	In buffer    Out buffer                     Active tracks:
+	0x743bc69000   0x743be19000 -> 0x7312aa8640   1
+	Effect ID 11:
+		Session State Registered Enabled Suspended:
+		01449   003   y          y       n
+		Descriptor:
+		- UUID: ce772f20-847d-11df-bb17-0002a5d5c51b
+		- TYPE: 0bed4300-ddd6-11db-8f34-0002a5d5c51b
+		- apiVersion: 00000000
+		- flags: 00000048 (conn. mode: insert, insert pref: first, volume mgmt: implements control, input mode: not set, output mode: not set)
+		- name: Equalizer
+		- implementor: NXP Software Ltd.
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			 2925      100  yes    yes      0      0
+		Status Engine:
+		000    0x71e2a9e050
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0x743bc69000) InConversion(nullptr) Out(0x743bc69000) OutConversion(nullptr)
+	Effect ID 11 HAL dump:
+	Effect ID 19:
+		Session State Registered Enabled Suspended:
+		01449   003   y          y       n
+		Descriptor:
+		- UUID: 8631f300-72e2-11df-b57e-0002a5d5c51b
+		- TYPE: 0634f220-ddd4-11db-a0fc-0002a5d5c51b
+		- apiVersion: 00000000
+		- flags: 00000248 (conn. mode: insert, insert pref: first, volume mgmt: implements control, device indication: requires updates, input mode: not set, output mode: not set)
+		- name: Dynamic Bass Boost
+		- implementor: NXP Software Ltd.
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			 2925      100  yes    yes      0      0
+		Status Engine:
+		000    0x71e2a9e9b0
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0x743bc69000) InConversion(nullptr) Out(0x743bc69000) OutConversion(nullptr)
+	Effect ID 19 HAL dump:
+	Effect ID 35:
+		Session State Registered Enabled Suspended:
+		01449   000   y          n       n
+		Descriptor:
+		- UUID: 172cdf00-a3bc-11df-a72f-0002a5d5c51b
+		- TYPE: 47382d60-ddd8-11db-bf3a-0002a5d5c51b
+		- apiVersion: 00000000
+		- flags: 00000048 (conn. mode: insert, insert pref: first, volume mgmt: implements control, input mode: not set, output mode: not set)
+		- name: Insert Preset Reverb
+		- implementor: NXP Software Ltd.
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			 2925      100  yes    yes      0      0
+		Status Engine:
+		000    0x71e2a9e890
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0x743bc69000) InConversion(nullptr) Out(0x743bc69000) OutConversion(nullptr)
+	Effect ID 35 HAL dump:
+	Effect ID 83:
+		Session State Registered Enabled Suspended:
+		01449   003   y          y       n
+		Descriptor:
+		- UUID: 23e79ffb-ab65-4cd7-a768-b493ded3fabe
+		- TYPE: 69dc09f7-12a9-471d-89a1-603608c452c9
+		- apiVersion: 00000000
+		- flags: 00000250 (conn. mode: insert, insert pref: last, volume mgmt: implements control, device indication: requires updates, input mode: not set, output mode: not set)
+		- name: SoundPower
+		- implementor: SoundPower contributors
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			24582        0  yes    yes      0      0
+		Status Engine:
+		000    0x71e2a9f490
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0x743bc69000) InConversion(nullptr) Out(0x743bc69000) OutConversion(nullptr)
+	Effect ID 83 HAL dump:
+SoundPower 0.3.0 (protocol 1.2): session 1449 io 13, active, 48000 Hz, 2 ch, format 0x5, cpu avg 9.72% peak 50.82%, limiter 0.00 dB, 8426880 frames, flags 0x8, 2 instances, volume 0.0/0.0 dB by mixer (stage 0.0 dB), peak in 0.0 out 3.0 dBFS
+	Effect ID 27:
+		Session State Registered Enabled Suspended:
+		01449   003   y          y       n
+		Descriptor:
+		- UUID: 1d4033c0-8557-11df-9f2d-0002a5d5c51b
+		- TYPE: 37cc2c00-dddd-11db-8577-0002a5d5c51b
+		- apiVersion: 00000000
+		- flags: 00000250 (conn. mode: insert, insert pref: last, volume mgmt: implements control, device indication: requires updates, input mode: not set, output mode: not set)
+		- name: Virtualizer
+		- implementor: NXP Software Ltd.
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			 2925      100  yes    yes      0      0
+		Status Engine:
+		000    0x71e2a9dc90
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743bc69000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x743be19000 00960   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0x743bc69000) InConversion(nullptr) Out(0x743be19000 -> 0x7312aa8640) OutConversion(nullptr)
+	Effect ID 27 HAL dump:
+  Local log:
+   11-21 20:54:53.945 CFG_EVENT_CREATE_AUDIO_PATCH: old device  (Empty device types) new device 0x2 (AUDIO_DEVICE_OUT_SPEAKER)
+   11-21 20:55:02.200 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x2 (AUDIO_DEVICE_OUT_SPEAKER) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:55:02.204 AT::add       (0x72a2a9a3c0)          56     no  11541    1449      15 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392       0 f         0        0       new
+   11-21 20:55:15.181 AT::add       (0x72a2a9f100)          57     no   1693    1473      16 A  0x000 00000001 00000001  48000  1   d  4  -inf     0     0     0  00000000  24000       0 f         0        0       new
+   11-21 20:55:18.080 AT::remove    (0x72a2a9f100)          57     no   1693    1473      16 S  0x600 00000001 00000001  48000  1   d  4   -27     0     0     0  000203A0  24000       0 f         0        0  125.05 k
+   11-21 21:06:56.734 AT::add       (0x72a2a9bd80)          66     no  11541    1449      25 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392   15048 f         0        0       new
+
+Output thread 0x743b9eca60, name AudioOut_15, tid 24657, type 0 (MIXER):
+  I/O handle: 21
+  Standby: yes
+  Sample rate: 48000 Hz
+  HAL frame count: 192
+  HAL format: 0x1 (AUDIO_FORMAT_PCM_16_BIT)
+  HAL buffer size: 768 bytes
+  Channel count: 2
+  Channel mask: 0x00000003 (front-left, front-right)
+  Processing format: 0x5 (AUDIO_FORMAT_PCM_FLOAT)
+  Processing frame size: 8 bytes
+  Pending config events: none
+  Output devices: 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+  Input device: 0 (AUDIO_DEVICE_NONE)
+  Audio source: 0 (AUDIO_SOURCE_DEFAULT)
+  Timestamp stats: n=10154 disc=51 cold=4 nRdy=1 err=15 rate=1.00012 jitterMs(ave=-0.0002868 std=0.200432 min=-3.24036 max=3.24474) localSR(47998.5, 4.66202e-08) correctedJitterMs(ave=0.000120625 std=0.0199452 min=-0.406458 max=0.327552)
+  Timestamp corrected: no
+  Last write occurred (msecs): 435639
+  Master volume: 1.000000
+  Master mute: off
+  Mixer channel Mask: 0x3 (front-left, front-right)
+  Normal frame count: 960
+  Total writes: 5180
+  Delayed writes: 0
+  Blocked in write: no
+  Suspend count: 0
+  Sink buffer : 0x7312ab0e80
+  Mixer buffer: 0x7312aa4220
+  Effect buffer: 0x7312aa2020
+  Fast track availMask=0xfe
+  Standby delay ns=3000000000
+  AudioStreamOut: 0x71e2a9e3b0 flags 0x4 (AUDIO_OUTPUT_FLAG_FAST)
+  Frames written: 4972800
+  Suspended frames: 0
+  PipeSink frames written: 4972800
+  Hal stream dump:
+Audio Stream Out::dump
+      Mutex: locked
+      Standby: true
+      PCM Device Id: 13
+  AudioMixer tracks: 55 
+  Master mono: off
+  Master balance: 0.000000 (0.000000)
+  FastMixer thread 0x743b97bcb0 tid=24656  FastMixer command=COLD_IDLE writeSequence=52052 framesWritten=4996992
+            numTracks=1 writeErrors=0 underruns=8 overruns=10
+            sampleRate=48000 frameCount=192 measuredWarmup=16.1 ms, warmupCycles=6
+            mixPeriod=4.00 ms latency=21.00 ms
+  FastMixer Timestamp stats: n=25893 disc=26 cold=0 nRdy=0 err=1 rate=0.999997 jitterMs(ave=-0.000103641 std=0.195474 min=-3.24146 max=3.23125) localSR(47997.1, 1.61551e-07) correctedJitterMs(ave=7.66717e-05 std=0.00958004 min=-0.415313 max=0.14849)
+  Simple moving statistics over last 9.1 seconds:
+    wall clock time in ms per mix cycle:
+      mean=4.00 min=2.16 max=5.94 stddev=0.33
+    raw CPU load in us per mix cycle:
+      mean=211 min=0 max=1464 stddev=170
+  Distribution of mix cycle times in ms for the tails (> ~3 stddev outliers):
+    left tail: mean=2.18 min=2.16 max=2.20 stddev=0.03
+    right tail: mean=5.76 min=5.57 max=5.94 stddev=0.26
+  Fast tracks: sMaxFastTracks=8 activeMask=0x1
+  Index Active Full Partial Empty  Recent Ready    Written
+      0    yes  295       0     0    full  1152    4971648
+      1     no    0       0     0    full     0          0
+      2     no    0       0     0    full     0          0
+      3     no    0       0     0    full     0          0
+      4     no    0       0     0    full     0          0
+      5     no    0       0     0    full     0          0
+      6     no    0       0     0    full     0          0
+      7     no    0       0     0    full     0          0
+  Stream volumes in dB: 0:-21, 1:-27, 2:-20, 3:-33, 4:-14, 5:-20, 6:-inf, 7:-27, 8:-21, 9:0, 10:-31, 11:-33, 12:0, 13:0, 14:0
+  Normal mixer raw underrun counters: partial=0 empty=0
+  1 Tracks of which 0 are active
+    Type     Id Active Client Session Port Id S  Flags   Format Chn mask  SRate ST Usg CT  G db  L dB  R dB  VS dB   Server FrmCnt  FrmRdy F Underruns  Flushed   Latency
+       S     55     no   1693     129      14 S  0x600 00000001 00000003  44100  1   d  4   -33    -6    -6     0  0002B866   4146       0 f         0        0   62.08 k
+  0 Effect Chains
+  Local log:
+   11-21 20:59:51.629 threadLoop_standby: framesWritten:3613440  suspendedFrames:0  monoPipeWritten:3613440  monoPipeLeft:576
+   11-21 20:59:51.629 threadLoop_standby: BOOTTIME offset 0
+ExtendedTimestamp[0]  position: 0  time: -1
+ExtendedTimestamp[1]  position: 3613440  time: 479978094503
+ExtendedTimestamp[2]  position: 3611664  time: 479996765284
+ExtendedTimestamp[3]  position: 3613440  time: 479978094503
+ExtendedTimestamp[4]  position: 3611088  time: 479984772107
+   11-21 20:59:51.885 AT::add       (0x72a2a976b0)    S     55     no   1693     129      14 A  0x200 00000001 00000003  44100  1   d  4   -33    -6    -6     0  0001E5DC   4146       0 F         0        0   54.51 k
+AudioDevice HAL::dump
+	Mutex: locked
+	Bluetooth Samplerate: 8000
+	Audio Mode: 0
+	Audio Devices: 8
+Patches:
+  Patch 36: No software bridge (thread 0x0 => thread 0x0) thread 0x743b9eca60 num sinks (1) first device type 00000008
+  Patch 44: No software bridge (thread 0x0 => thread 0x0) thread 0x743ba8ea60 num sinks (1) first device type 00000008
+
+Device Effects:
+
+Rejected setParameters:
+
+App setParameters:
+
+System setParameters:
+    11-21 20:54:54.819 UID  1000, 1 KVP received: restarting=true
+    11-21 20:54:54.833 UID  1000, 1 KVP received: BT_SCO=off
+    11-21 20:54:54.847 UID  1000, 1 KVP received: BT_SCO=off
+    11-21 20:54:54.869 UID  1000, 1 KVP received: restarting=false

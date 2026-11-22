@@ -1,0 +1,311 @@
+Libraries NOT loaded:
+Libraries loaded:
+ Library gamedap
+  path: /vendor/lib/soundfx/libswgamedap.so
+  DAP_game / Dolby Laboratories
+    UUID: 3783c334-d3a0-4d13-874f-0032e5fb80e2
+    TYPE: 12ea851f-0e12-4bde-a5e5-71f5651e9f96
+    apiVersion: 00020000
+    flags: 00040288
+ Library spatializer
+Notification Clients:
+   pid    uid  name
+   678   1041  audioserver
+   773  10435  com.example.player
+   975   1013  media
+  1164   1000  android.uid.system
+  1446  10244  android.uid.systemui
+  2734  10207  com.example.keyboard
+  2836  10242  com.dolby.daxservice
+  7991  10352  com.reinanbr.soundpower
+Global session refs:
+  session  cnt     pid    uid  name
+     6153    1    1446  10244  android.uid.systemui
+     6161    1     678   1041  audioserver
+     6169    1     773  10435  com.example.player
+Hardware status: 0
+Vibrator infos(size=1):
+  - AudioVibratorInfo{id: 1, resonantFrequency: nan, qFactor: nan, maxAmplitude: nan}
+Bluetooth latency modes are enabled
+
+Output thread 0xb4000075f3344860, name AudioOut_D, tid 1125, type 0 (MIXER):
+  I/O handle: 13
+  Standby: yes
+  Sample rate: 48000 Hz
+  HAL frame count: 960
+  HAL format: 0x1 (AUDIO_FORMAT_PCM_16_BIT)
+  HAL buffer size: 3840 bytes
+  Channel count: 2
+  Channel mask: 0x00000003 (front-left, front-right)
+  Processing format: 0x1 (AUDIO_FORMAT_PCM_16_BIT)
+  Processing frame size: 4 bytes
+  Pending config events: none
+  Output devices:  (Empty device types)
+  Input device: 0 (AUDIO_DEVICE_NONE)
+  Audio source: 0 (AUDIO_SOURCE_DEFAULT)
+  Timestamp stats: n=362991 disc=1180 cold=0 nRdy=0 err=194 rate=0.999987 jitterMs(ave=-9.89509e-05 std=0.89636 min=-4.85773 max=270.826) localSR(47998.3, 3.11237e-07) correctedJitterMs(ave=0.000246368 std=0.0716485 min=-22.3331 max=267.826)
+  Timestamp corrected: no
+  Last write occurred (msecs): 22167849
+  Master volume: 1.000000
+  Master mute: off
+  Mixer channel Mask: 0x3 (front-left, front-right)
+  Normal frame count: 960
+  Total writes: 344023
+  Delayed writes: 0
+  Blocked in write: no
+  Suspend count: 0
+  Fast track availMask=0xfe
+  Standby delay ns=3000000000
+  AudioStreamOut: 0xb40000750b8015b0 flags 0x2 (AUDIO_OUTPUT_FLAG_PRIMARY)
+  Frames written: 330262080
+  Suspended frames: 0
+  Hal stream dump:
+
+
+  Thread throttle time (msecs): 1227
+  AudioMixer tracks: 
+  Master mono: off
+  Master balance: 0.000000 (balance 0 channelCount 2 volumes: 1 1)
+  No FastMixer
+Bluetooth latency modes are not enabled
+HAL does not support Bluetooth latency modes
+Supported latency modes: { }
+  Stream volumes in dB: 0:-17, 1:-inf, 2:-38, 3:-29, 4:-27, 5:-25, 6:-inf, 7:-22, 8:-37, 9:0, 10:-27, 11:-28, 12:0, 13:0, 14:0
+  Normal mixer raw underrun counters: partial=0 empty=0
+  2 Tracks of which 0 are active
+    Type     Id Active Client Session Port Id S  Flags   Format Chn mask  SRate ST Usg CT  G db  L dB  R dB  VS dB   Server FrmCnt  FrmRdy F Underruns  Flushed BitPerfect InternalMute   Latency
+            791     no    678       0       0 I  0x000 00000005 00000003  48000 13   0  0  -inf     0     0     0  00000000   5760       0 I         0        0      false        false       new
+            852     no    678       0       0 I  0x000 00000005 00000003  48000 13   0  0  -inf     0     0     0  00000000   5760       0 I         0        0      false        false       new
+  0 Effect Chains
+  Local log:
+   11-21 14:11:59.296 removeTrack_l (0xb4000073eb7b0cc8)         772     no  30569    5345     770 T  0x600 00000001 00000003  44100  3   1  0  -inf  -inf  -inf     0  00000372  14176       0 f         0    14176      false        false   84.21 k
+   11-21 14:11:59.766 AT::add       (0xb4000073eb7b0cc8)         773     no  30569    5353     771 A  0x000 00000001 00000003  44100  3   1  0  -inf  -inf  -inf     0  00000000  14176    8192 f         0        0      false        false       new
+   11-21 14:11:59.873 AT::remove    (0xb4000073eb7b0cc8)         773     no  30569    5353     771 P  0x400 00000001 00000003  44100  3   1  0  -inf  -inf  -inf     0  00000372  14176   14176 F         0        0      false        false  407.31 k
+   11-21 14:37:01.325 CFG_EVENT_RELEASE_AUDIO_PATCH: old device 0x2 (AUDIO_DEVICE_OUT_SPEAKER) new device  (Empty device types)
+
+Output thread 0xb4000075f3299860, name AudioOut_15, tid 1129, type 0 (MIXER):
+  I/O handle: 21
+  Standby: yes
+  Sample rate: 48000 Hz
+
+
+  Thread throttle time (msecs): 77
+  AudioMixer tracks: 
+  Master mono: off
+  Master balance: 0.000000 (balance 0 channelCount 2 volumes: 1 1)
+  No FastMixer
+Bluetooth latency modes are not enabled
+HAL does not support Bluetooth latency modes
+Supported latency modes: { }
+  Stream volumes in dB: 0:-42, 1:-inf, 2:-29, 3:-25, 4:-29, 5:-29, 6:-inf, 7:-29, 8:-21, 9:-96, 10:-23, 11:-25, 12:0, 13:0, 14:0
+  Normal mixer raw underrun counters: partial=0 empty=0
+  0 Tracks
+  1 Effect Chains
+    1 effects for session 6161
+	In buffer    Out buffer                           Active tracks:
+	0x75f31db000   0x75f31df000 -> 0xb40000736b7b6020   0
+	Effect ID 5875:
+		Session State Registered Internal Enabled Suspended:
+		06161   003   y          n        y       n
+		Descriptor:
+		- UUID: 40f66c8b-5aa5-4345-8919-53ec431aaa98
+		- TYPE: 40f66c8b-5aa5-4345-8919-53ec431aaa98
+		- apiVersion: 00000000
+		- flags: 00C00290 (conn. mode: insert, insert pref: last, volume mgmt: requires indication, device indication: requires updates, input mode: not set, output mode: not set, offloadable)
+		- name: Music Listener
+		- implementor: Dolby Laboratories
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			  678        0  yes    yes      0      0
+		Status Engine:
+		000    0xb40000735b7ddb90
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x75f31db000 01920   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x75f31df000 01920   48000    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0x75f31db000) InConversion(nullptr) Out(0x75f31df000 -> 0xb40000736b7b6020) OutConversion(nullptr)
+	Effect ID 5875 HAL dump:
+  Local log:
+   11-21 20:30:59.144 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:30:59.151 AT::add       (0xb4000073eb7b0658)         842     no    773    6169     855 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392   15392 f         0        0      false        false       new
+   11-21 20:33:05.217 AT::remove    (0xb4000073eb7b0658)         842     no    773    6169     855 S  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  005C2D88  15392       0 f         0        0      false        false  176.55 k
+   11-21 20:33:05.417 removeTrack_l (0xb4000073eb7b0658)         842     no    773    6169     855 T  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  005C2D88  15392       0 f         0        0      false        false  176.55 k
+   11-21 20:33:06.863 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:33:06.872 AT::add       (0xb4000073eb7b0658)         843     no    773    6169     856 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392       0 f         0        0      false        false       new
+   11-21 20:36:13.937 AT::remove    (0xb4000073eb7b0658)         843     no    773    6169     856 S  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  0088DB08  15392       0 f         0        0      false        false  173.47 k
+   11-21 20:36:14.120 removeTrack_l (0xb4000073eb7b0658)         843     no    773    6169     856 T  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  0088DB08  15392       0 f         0        0      false        false  173.47 k
+   11-21 20:36:14.418 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:36:14.423 AT::add       (0xb4000073eb7b0658)         844     no    773    6169     857 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392       0 f         0        0      false        false       new
+   11-21 20:37:03.695 AT::add       (0xb4000073eb7affe8)         845     no    773    6169     858 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392       0 f         0        0      false        false       new
+   11-21 20:37:03.855 AT::remove    (0xb4000073eb7b0658)         844     no    773    6169     857 T  0x600 00000001 00000003  48000  3   1  2  -inf     0     0     0  00241080  15392       0 f         0    13472      false        false  193.25 k
+   11-21 20:37:03.855 removeTrack_l (0xb4000073eb7b0658)         844     no    773    6169     857 T  0x600 00000001 00000003  48000  3   1  2  -inf     0     0     0  00241080  15392       0 f         0    13472      false        false  193.25 k
+   11-21 20:37:05.695 AT::remove    (0xb4000073eb7affe8)         845     no    773    6169     858 T  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  00015900  15392       0 f         0    15392      false        false  176.42 k
+   11-21 20:37:05.696 removeTrack_l (0xb4000073eb7affe8)         845     no    773    6169     858 T  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  00015900  15392       0 f         0    15392      false        false  176.42 k
+   11-21 20:37:06.815 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:37:06.821 AT::add       (0xb4000073eb7ab918)         846     no    773    6169     859 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392       0 f         0        0      false        false       new
+   11-21 20:40:13.896 AT::remove    (0xb4000073eb7ab918)         846     no    773    6169     859 S  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  0088DB08  15392       0 f         0        0      false        false  173.07 k
+   11-21 20:40:14.089 removeTrack_l (0xb4000073eb7ab918)         846     no    773    6169     859 T  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  0088DB08  15392       0 f         0        0      false        false  173.07 k
+   11-21 20:40:14.303 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:40:14.309 AT::add       (0xb4000073eb7ab918)         847     no    773    6169     860 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392       0 f         0        0      false        false       new
+   11-21 20:40:16.695 AT::remove    (0xb4000073eb7ab918)         847     no    773    6169     860 T  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  00019C80  15392       0 f         0    13472      false        false  177.05 k
+   11-21 20:40:16.696 removeTrack_l (0xb4000073eb7ab918)         847     no    773    6169     860 T  0x600 00000001 00000003  48000  3   1  2   -15     0     0     0  00019C80  15392       0 f         0    13472      false        false  177.05 k
+   11-21 20:40:17.182 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:40:17.188 AT::add       (0xb4000073eb7b39d8)         848     no    773    6169     861 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392       0 f         0        0      false        false       new
+   11-21 20:40:18.892 AT::remove    (0xb4000073eb7b39d8)         848     no    773    6169     861 T  0x600 00000001 00000003  48000  3   1  2  -inf     0     0     0  00011580  15392       0 f         0    15392      false        false  176.29 k
+   11-21 20:40:18.893 removeTrack_l (0xb4000073eb7b39d8)         848     no    773    6169     861 T  0x600 00000001 00000003  48000  3   1  2  -inf     0     0     0  00011580  15392       0 f         0    15392      false        false  176.29 k
+   11-21 20:40:20.137 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:40:20.145 AT::add       (0xb4000073eb7ab918)         849     no    773    6169     862 A  0x000 00000001 00000003  48000  3   1  2  -inf  -2.9  -2.9     0  00000000  15392   15048 f         0        0      false        false       new
+   11-21 20:45:51.659 AT::remove    (0xb4000073eb7ab918)         849     no    773    6169     862 S  0x600 00000001 00000003  48000  3   1  2   -28     0     0     0  00F2AF90  15392       0 f         0        0      false        false  176.30 k
+   11-21 20:45:52.214 removeTrack_l (0xb4000073eb7ab918)         849     no    773    6169     862 T  0x600 00000001 00000003  48000  3   1  2   -28     0     0     0  00F2AF90  15392       0 f         0        0      false        false  176.30 k
+   11-21 20:45:53.130 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:45:53.149 AT::add       (0xb4000073eb7ad2d8)         850     no    773    6169     863 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392   15048 f         0        0      false        false       new
+   11-21 20:47:57.936 AT::remove    (0xb4000073eb7ad2d8)         850     no    773    6169     863 S  0x600 00000001 00000003  48000  3   1  2   -25     0     0     0  005B3D88  15392       0 f         0        0      false        false  176.49 k
+   11-21 20:47:58.378 removeTrack_l (0xb4000073eb7ad2d8)         850     no    773    6169     863 T  0x600 00000001 00000003  48000  3   1  2   -25     0     0     0  005B3D88  15392       0 f         0        0      false        false  176.49 k
+   11-21 20:47:59.021 CFG_EVENT_CREATE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+   11-21 20:47:59.036 AT::add       (0xb4000073eb7ab918)         851     no    773    6169     864 A  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392       0 f         0        0      false        false       new
+   11-21 20:48:26.494 AT::remove    (0xb4000073eb7ab918)         851     no    773    6169     864 P  0x400 00000001 00000003  48000  3   1  2  -inf     0     0     0  0013FB00  15392   13472 A         0        0      false        false  457.03 k
+   11-21 20:48:27.414 CFG_EVENT_RELEASE_AUDIO_PATCH: old device 0x8 (AUDIO_DEVICE_OUT_WIRED_HEADPHONE) new device  (Empty device types)
+   11-21 20:48:28.290 removeTrack_l (0xb4000073eb7ab918)         851     no    773    6169     864 T  0x404 00000001 00000003  48000  3   1  2  -inf     0     0     0  0013FB00  15392   15392 A         0        0      false        false  497.03 k
+
+Output thread 0xb4000075ec41f860, name AudioOut_75, tid 4649, type 0 (MIXER):
+  I/O handle: 117
+  Standby: yes
+  Sample rate: 44100 Hz
+  HAL frame count: 448
+  HAL format: 0x1 (AUDIO_FORMAT_PCM_16_BIT)
+  HAL buffer size: 1764 bytes
+  Channel count: 2
+  Channel mask: 0x00000003 (front-left, front-right)
+  Processing format: 0x1 (AUDIO_FORMAT_PCM_16_BIT)
+  Processing frame size: 4 bytes
+  Pending config events: none
+  Output devices: 0x80 (AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)
+  Input device: 0 (AUDIO_DEVICE_NONE)
+  Audio source: 0 (AUDIO_SOURCE_DEFAULT)
+  Timestamp stats: n=1 disc=1 cold=0 nRdy=0 err=0 rate=nan jitterMs(unavail) localSR(nan, nan) correctedJitterMs(unavail)
+  Timestamp corrected: no
+  Master volume: 1.000000
+  Master mute: off
+  Mixer channel Mask: 0x3 (front-left, front-right)
+  Normal frame count: 448
+  Total writes: 0
+  Delayed writes: 0
+  Blocked in write: no
+  Suspend count: 0
+  Fast track availMask=0xfe
+  Standby delay ns=3000000000
+  AudioStreamOut: 0xb40000750b8086d0 flags 0 (AUDIO_OUTPUT_FLAG_NONE)
+  Frames written: 0
+  Suspended frames: 0
+  Hal stream dump:
+      Signal power history: (none)
+      Signal power history: (none)
+  Thread throttle time (msecs): 0
+  AudioMixer tracks: 
+  Master mono: off
+  Master balance: 0.000000 (balance 0 channelCount 2 volumes: 1 1)
+  No FastMixer
+Bluetooth latency modes are not enabled
+HAL does not support Bluetooth latency modes
+Supported latency modes: { }
+  Stream volumes in dB: 0:0, 1:-inf, 2:-36, 3:-inf, 4:-36, 5:-inf, 6:-inf, 7:-36, 8:-18, 9:-96, 10:-15, 11:-14, 12:0, 13:0, 14:0
+  Normal mixer raw underrun counters: partial=0 empty=0
+  2 Tracks of which 0 are active
+    Type     Id Active Client Session Port Id S  Flags   Format Chn mask  SRate ST Usg CT  G db  L dB  R dB  VS dB   Server FrmCnt  FrmRdy F Underruns  Flushed BitPerfect InternalMute   Latency
+            853     no    678       0       0 I  0x000 00000005 00000003  48000 13   0  0  -inf     0     0     0  00000000   2934       0 I         0        0      false        false       new
+            854     no    773    6169     874 I  0x000 00000001 00000003  48000  3   1  2  -inf     0     0     0  00000000  15392   15392 I         0        0      false        false       new
+  1 Effect Chains
+    2 effects for session 0
+	In buffer                         Out buffer                           Active tracks:
+	0xb40000738b7d5200 -> 0x75f33f6000   0x75f33f6000 -> 0xb40000738b7d5200   0
+	Effect ID 11:
+		Session State Registered Internal Enabled Suspended:
+		00000   000   y          n        n       n
+		Descriptor:
+		- UUID: 9d4921da-8225-4f29-aefa-39537a04bcaa
+		- TYPE: 46d279d9-9be7-453d-9d7c-ef937f675587
+		- apiVersion: 00000000
+		- flags: 00040288 (conn. mode: insert, insert pref: first, volume mgmt: requires indication, device indication: requires updates, input mode: not set, output mode: not set, mode indication: required)
+		- name: DAP
+		- implementor: Dolby Laboratories
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			 2836       -1  yes    yes      0      0
+		Status Engine:
+		000    0xb40000735b7dce80
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x75f33f6000 00448   44100    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x75f33f6000 00448   44100    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0xb40000738b7d5200 -> 0x75f33f6000) InConversion(nullptr) Out(0x75f33f6000 -> 0xb40000738b7d5200) OutConversion(nullptr)
+	Effect ID 11 HAL dump:
+	Effect ID 5995:
+		Session State Registered Internal Enabled Suspended:
+		00000   002   y          n        y       n
+		Descriptor:
+		- UUID: e0e6539b-1781-7261-676f-6d7573696340
+		- TYPE: 7261676f-6d75-7369-6364-28e2fd3ac39e
+		- apiVersion: 00000000
+		- flags: 00000050 (conn. mode: insert, insert pref: last, volume mgmt: implements control, input mode: not set, output mode: not set)
+		- name: Dynamics Processing
+		- implementor: The Android Open Source Project
+		1 Clients:
+			  Pid Priority Ctrl Locked client server
+			 7991    2147483647  yes    yes      0      0
+		Status Engine:
+		000    0xb40000735b7dc590
+		- data: float
+		- Input configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x75f33f6000 00448   44100    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- Output configuration:
+			Buffer     Frames  Smp rate Channels Format
+			0x75f33f6000 00448   44100    00000003      5 (AUDIO_FORMAT_PCM_FLOAT)
+		- HAL buffers:
+			In(0xb40000738b7d5200 -> 0x75f33f6000) InConversion(nullptr) Out(0x75f33f6000 -> 0xb40000738b7d5200) OutConversion(nullptr)
+	Effect ID 5995 HAL dump:
+  Local log:
+   11-21 20:48:27.875 CFG_EVENT_CREATE_AUDIO_PATCH: old device  (Empty device types) new device 0x80 (AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)
+
+Output thread 0xb4000075eac18810, name AudioOut_7D, tid 4655, type 2 (DUPLICATING):
+  I/O handle: 125
+  Standby: yes
+  Sample rate: 48000 Hz
+  HAL frame count: 960
+  HAL format: 0x1 (AUDIO_FORMAT_PCM_16_BIT)
+  HAL buffer size: 7680 bytes
+  Channel count: 2
+  Channel mask: 0x00000003 (front-left, front-right)
+
+  Thread throttle time (msecs): 0
+  AudioMixer tracks: 
+  Master mono: off
+  Master balance: 0.000000 (balance 0 channelCount 2 volumes: 1 1)
+  No FastMixer
+Bluetooth latency modes are not enabled
+HAL does not support Bluetooth latency modes
+Supported latency modes: { LOW }
+  2 OutputTracks: (852 : 0xb4000075f3388fe8, 13) (853 : 0xb4000075ec463fe8, 117)
+  Stream volumes in dB: 0:-17, 1:-inf, 2:-44, 3:-inf, 4:-36, 5:-36, 6:-inf, 7:-36, 8:-37, 9:0, 10:-27, 11:-28, 12:0, 13:0, 14:0
+  Normal mixer raw underrun counters: partial=0 empty=0
+  0 Tracks
+  0 Effect Chains
+  Local log:
+diagnose_dsp_info_dump: audio_upload_enable(0x0) codec_info_enable(0x0) audio_info_enable(0x0) codec_err_info_enable(0x0) audio_err_info_enable(0x0) codec_event_info_enable(0x0)
+Patches:
+  Patch 36: No software bridge (thread 0x0 => thread 0x0) thread 0xb4000075f2feffe8 num sinks (1) first device type 00000002
+  Patch 44: No software bridge (thread 0x0 => thread 0x0) thread 0xb4000075f2f65fe8 num sinks (1) first device type 00010000
+  Patch 428: No software bridge (thread 0x0 => thread 0x0) thread 0xb4000075ec463fe8 num sinks (1) first device type 00000080
+
+Device Effects:
+
+Sound Dose:
+CSD is disabled
