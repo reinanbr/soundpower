@@ -89,7 +89,7 @@ import com.reinanbr.soundpower.ui.presets.PresetFiles
 import kotlinx.coroutines.launch
 
 /** What the screen can ask of the app around it. */
-class DiagnosticsActions(val onBack: () -> Unit, val onOpenSetup: () -> Unit)
+class DiagnosticsActions(val onBack: () -> Unit, val onOpenSetup: () -> Unit, val onOpenPlayers: () -> Unit)
 
 /**
  * The diagnostics: a verdict, what to check (with the action that fixes it where there is one),
@@ -291,6 +291,9 @@ private fun FindingItem(f: Finding, state: DiagnosticsUi, names: Names, vm: Diag
             Text(text.second, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
             val action: Pair<String, () -> Unit>? = when (f) {
                 is Finding.Setup -> stringResource(R.string.diag_open_setup) to actions.onOpenSetup
+                is Finding.NotProcessed -> f.item.reason.takeIf { it == Unprocessed.Reason.NOT_ATTACHED }?.let {
+                    stringResource(R.string.players_title) to actions.onOpenPlayers
+                }
                 Finding.EqOff -> stringResource(R.string.diag_turn_on) to vm::turnOnEqualizer
                 is Finding.Clipping -> stringResource(R.string.diag_limiter_on) to vm::turnOnLimiter
                 is Finding.VolumeRestart -> stringResource(R.string.diag_restart_audio) to vm::restartAudio

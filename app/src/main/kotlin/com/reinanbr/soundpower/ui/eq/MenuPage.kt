@@ -154,6 +154,7 @@ private fun EngineSection(state: EqUiState, vm: EqViewModel, actions: EqActions)
             stringResource(if (rootless) R.string.engine_rootless else R.string.engine_root),
             onClick = actions.changeEngine,
         )
+        MenuRow(stringResource(R.string.players_title), stringResource(R.string.players_menu_summary)) { actions.openTool(EqTool.PLAYERS) }
         if (!rootless) return@Section
         val options = state.rootless
         Label(stringResource(R.string.rootless_scope))
@@ -207,7 +208,7 @@ private fun Label(text: String) {
 }
 
 @Composable
-private fun RadioRow(title: String, summary: String?, selected: Boolean, onSelect: () -> Unit) {
+internal fun RadioRow(title: String, summary: String?, selected: Boolean, onSelect: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().selectable(selected, role = Role.RadioButton, onClick = onSelect),
         verticalAlignment = Alignment.CenterVertically,

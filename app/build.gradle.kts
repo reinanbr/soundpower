@@ -116,6 +116,7 @@ dependencies {
     implementation(project(":android-core:effect"))
     implementation(project(":android-core:rootless"))
     implementation(project(":android-core:data"))
+    implementation(libs.hiddenapibypass)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

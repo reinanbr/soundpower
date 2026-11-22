@@ -165,6 +165,17 @@ class DiagnosisTest {
         assertTrue(d.findings.none { it is Finding.NothingPlaying })
     }
 
+    /** The per-session fallback: the app's own instance on a player's session is a stream. */
+    @Test
+    fun theAppsOwnInstanceOnAPlayerCounts() {
+        val attached = EffectChain(1449, listOf(sp(83, 1449, client = OWN)))
+        // Without STATUS the control session is unknown; with no track on it, it is still left out.
+        val spare = EffectChain(1601, listOf(sp(91, 1601, client = OWN)))
+        val d = root(flinger(mixer(listOf(track(1449)), listOf(attached, spare))), status = null)
+        assertEquals(listOf(1449), d.streams.map { it.session })
+        assertTrue(d.unprocessed.isEmpty())
+    }
+
     @Test
     fun aSoundPowerOnTheOutputMixCoversEveryTrack() {
         val mix = EffectChain(0, listOf(sp(90, 0)))
@@ -265,6 +276,7 @@ class DiagnosisTest {
             engine = EngineMode.ROOT, settings = AudioSettings(), setup = ready(), bundled = bundled, status = status(claimed = true),
             flinger = flinger(mixer(listOf(track(1449)), listOf(control, chain))), system = SystemCheck(policyLoaded = true), ownPid = OWN,
             directVolume = true,
+            players = PlayerSettings(true, false, false, setOf("com.example.game"), mapOf(1449 to "com.example.player")),
         )
         // The report is English whatever the phone's language, decimal points included.
         val saved = Locale.getDefault()
@@ -284,6 +296,8 @@ class DiagnosisTest {
             "chain: SoundPower (SoundPower contributors, volume, by audioserver) > Virtualizer",
             "volume controller: Virtualizer",
             "cpu 5.00 % peak 10.00 %",
+            "players: root fallback on, advanced tracking off, DUMP permission no, turned off com.example.game",
+            "attached by the app: 1449 (com.example.player)",
             "== Module diag.sh",
             "I app: started",
         )) {

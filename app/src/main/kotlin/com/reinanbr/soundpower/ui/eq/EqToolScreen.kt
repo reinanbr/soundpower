@@ -54,6 +54,7 @@ internal fun EqToolScreen(
         // Shown by their own screens, never here.
         EqTool.PRESETS -> R.string.presets_title
         EqTool.DIAGNOSTICS -> R.string.diag_title
+        EqTool.PLAYERS -> R.string.players_title
     }
     Scaffold(
         modifier = modifier,
@@ -76,7 +77,7 @@ internal fun EqToolScreen(
             val s = state.settings ?: return@Column
             when (tool) {
                 EqTool.BANDS -> BandsTool(s, vm, onRequestValue)
-                EqTool.PRESETS, EqTool.DIAGNOSTICS -> {}
+                EqTool.PRESETS, EqTool.DIAGNOSTICS, EqTool.PLAYERS -> {}
             }
         }
     }

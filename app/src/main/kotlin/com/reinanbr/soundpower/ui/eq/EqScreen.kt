@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import com.reinanbr.soundpower.R
 import com.reinanbr.soundpower.ui.presets.PresetTitle
 import com.reinanbr.soundpower.ui.presets.PresetsUiState
+import com.reinanbr.soundpower.ui.players.PlayersChip
 import com.reinanbr.soundpower.ui.presets.PresetsViewModel
 import com.reinanbr.soundpower.ui.presets.SuggestionBanner
 import com.reinanbr.soundpower.model.AudioSettings
@@ -105,9 +106,10 @@ internal fun EqPage(state: EqUiState, vm: EqViewModel, actions: EqActions, prese
                 Text(stringResource(R.string.setup_checking))
                 return@Column
             }
-            // One child for both, so the error lines take no space (and no spacing) while there are none.
+            // One child for all, so the error lines take no space (and no spacing) while there are none.
             Column {
                 ErrorLines(state, vm::retry) { actions.openTool(EqTool.DIAGNOSTICS) }
+                PlayersChip(onClick = { actions.openTool(EqTool.PLAYERS) }, modifier = Modifier.padding(bottom = 8.dp))
                 ModeSelector(settings.eq.mode, vm::setMode)
             }
             presets.suggestion?.let { s ->

@@ -11,11 +11,14 @@ import com.reinanbr.soundpower.devices.OutputMonitor
 import com.reinanbr.soundpower.diagnostics.DiagnosticsRepository
 import com.reinanbr.soundpower.effect.AudioEffectTransport
 import com.reinanbr.soundpower.effect.EffectController
+import com.reinanbr.soundpower.effect.SessionInstances
 import com.reinanbr.soundpower.engine.EngineMode
 import com.reinanbr.soundpower.engine.EqService
 import com.reinanbr.soundpower.eq.EqRepository
 import com.reinanbr.soundpower.model.AutoEq
 import com.reinanbr.soundpower.model.AutoEqIndex
+import com.reinanbr.soundpower.players.PlayerTracker
+import com.reinanbr.soundpower.players.ServiceDump
 import com.reinanbr.soundpower.presets.PresetRepository
 import com.reinanbr.soundpower.root.LibsuRootShell
 import com.reinanbr.soundpower.root.ModuleManager
@@ -69,6 +72,12 @@ class AppContainer(context: Context) {
         scope = scope,
     )
 
+    /** Which players play, and the user's choice for each. */
+    val players = PlayerTracker(app, modules, uiPrefs.engine, uiPrefs, Process.myPid(), appScope)
+
+    /** The root mode's per-session fallback, held by [EqService]. */
+    val fallback = SessionInstances(AudioEffectTransport::attach)
+
     /** The output music plays on. */
     val output = OutputMonitor(app, appScope)
 
@@ -87,14 +96,18 @@ class AppContainer(context: Context) {
     val presetSearch = MutableStateFlow<String?>(null)
 
     /**
-     * Whether [EqService] should run: without root while the equalizer is on (it holds Android's
-     * effect), and in either mode while presets switch by output.
+     * Whether [EqService] should run: while the equalizer is on without root, or with root and the
+     * per-session fallback (it holds the effect instances), and in either mode while presets switch
+     * by output.
      */
     val serviceWanted: Flow<Boolean> = combine(
         uiPrefs.engine,
         eq.settings.filterNotNull().map { it.enabled },
         presets.library.filterNotNull(),
-    ) { mode, on, lib -> (mode == EngineMode.ROOTLESS && on) || (lib.switchByOutput && lib.assignments.isNotEmpty()) }
+        uiPrefs.rootFallback,
+    ) { mode, on, lib, fallback ->
+        (on && (mode == EngineMode.ROOTLESS || (mode == EngineMode.ROOT && fallback))) || (lib.switchByOutput && lib.assignments.isNotEmpty())
+    }
         .distinctUntilChanged()
 
     init {
@@ -120,6 +133,8 @@ class AppContainer(context: Context) {
         eq = eq,
         prefs = uiPrefs,
         rootless = rootless,
+        fallback = fallback,
+        hasDumpPermission = { ServiceDump.granted(app) },
         isModuleRegistered = AudioEffectTransport::isRegistered,
         isBatteryOptimized = {
             app.getSystemService(PowerManager::class.java)?.let { !it.isIgnoringBatteryOptimizations(app.packageName) }

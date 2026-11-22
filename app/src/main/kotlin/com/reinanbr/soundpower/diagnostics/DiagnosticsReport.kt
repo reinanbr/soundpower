@@ -33,6 +33,15 @@ object DiagnosticsReport {
         input.settings?.let { s ->
             section("Settings")
             line("equalizer ${onOff(s.enabled)}, limiter ${onOff(s.limiter.enabled)}, direct volume ${onOff(input.directVolume)}")
+            input.players?.let { p ->
+                line(
+                    "players: root fallback ${onOff(p.rootFallback)}, advanced tracking ${onOff(p.advancedTracking)}, " +
+                        "DUMP permission ${yesNo(p.dumpPermission)}, turned off ${p.turnedOff.sorted().ifEmpty { listOf("none") }.joinToString()}",
+                )
+                if (p.attached.isNotEmpty()) {
+                    line("attached by the app: " + p.attached.entries.joinToString { (session, pkg) -> "$session (${pkg ?: "unknown app"})" })
+                }
+            }
             line(s.toJson())
         }
 

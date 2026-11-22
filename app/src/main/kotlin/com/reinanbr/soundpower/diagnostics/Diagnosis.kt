@@ -5,6 +5,7 @@ import com.reinanbr.soundpower.effect.EffectController
 import com.reinanbr.soundpower.engine.EngineMode
 import com.reinanbr.soundpower.engine.RootlessScope
 import com.reinanbr.soundpower.model.AudioSettings
+import com.reinanbr.soundpower.players.Players
 import com.reinanbr.soundpower.protocol.Capability
 import com.reinanbr.soundpower.protocol.EffectStatus
 import com.reinanbr.soundpower.root.AudioFlingerDump
@@ -41,6 +42,19 @@ data class DiagnosticsInput(
     val ownPid: Int = -1,
     /** Android may stop the app in the background to save battery; null if unknown. */
     val batteryOptimized: Boolean? = null,
+    val players: PlayerSettings? = null,
+)
+
+/** How the app reaches the players, for the report. */
+data class PlayerSettings(
+    /** Root mode's per-session fallback. */
+    val rootFallback: Boolean,
+    /** Without root: players found from AudioFlinger's dump. */
+    val advancedTracking: Boolean,
+    val dumpPermission: Boolean,
+    val turnedOff: Set<String>,
+    /** Sessions the app attached SoundPower to itself (the fallback), with their players. */
+    val attached: Map<Int, String?>,
 )
 
 enum class Severity { ERROR, WARNING, INFO }
@@ -76,7 +90,7 @@ data class OtherEffect(
     val byApp: Boolean get() = owner != null && owner !in SYSTEM_OWNERS
 
     companion object {
-        val SYSTEM_OWNERS = setOf("audioserver", "media", "android.uid.system", "system_server")
+        val SYSTEM_OWNERS = Players.SYSTEM_PROCESSES
     }
 }
 
@@ -337,11 +351,15 @@ data class Diagnosis(
             return Diagnosis(verdict, findings.sortedBy { it.severity })
         }
 
-        /** SoundPower's instances on players' sessions (not the app's control instance). */
+        /**
+         * SoundPower's instances on players' sessions, not the app's control instance: the app's
+         * own instances count only on a session with tracks (the per-session fallback).
+         */
         private fun streams(flinger: AudioFlingerDump, input: DiagnosticsInput): List<Stream> {
             val controlSession = input.status?.sessionId
             return flinger.soundPowerInstances
-                .filter { it.chain.session != controlSession && it.effect.clientPid != input.ownPid }
+                .filter { it.chain.session != controlSession }
+                .filter { p -> p.effect.clientPid != input.ownPid || p.thread.tracks.any { it.session == p.chain.session } }
                 .map { (thread, chain, effect) ->
                     val tracks = thread.tracks.filter { it.session == chain.session }
                     val position = chain.effects.indexOf(effect)

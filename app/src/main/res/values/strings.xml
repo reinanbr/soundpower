@@ -222,8 +222,8 @@
     <string name="rootless_scope">Apply to</string>
     <string name="rootless_scope_global">All audio</string>
     <string name="rootless_scope_global_hint">Attaches to the output mix. Most phones allow it; on some it has no effect.</string>
-    <string name="rootless_scope_sessions">Players that announce their audio</string>
-    <string name="rootless_scope_sessions_hint">Only apps that open an audio effect session, as most music players do. Use it where “All audio” has no effect.</string>
+    <string name="rootless_scope_sessions">Players one by one</string>
+    <string name="rootless_scope_sessions_hint">Attaches to each player: those that announce their audio, as most music players do, and with advanced tracking the others too. Use it where “All audio” has no effect, or to leave some players out.</string>
     <string name="rootless_precision">Frequency precision</string>
     <string name="rootless_precision_fast">Low delay</string>
     <string name="rootless_precision_balanced">Balanced</string>
@@ -448,7 +448,7 @@
     <string name="diag_unprocessed_title">%1$s plays without SoundPower</string>
     <string name="diag_unprocessed_fast">It uses a low-latency output, which Android keeps free of effects. Look for a low-latency, AAudio or OpenSL option in the player and turn it off.</string>
     <string name="diag_unprocessed_output">It plays through an offloaded, direct or exclusive output (%1$s), where effects do not run. Turn off options such as hi-res output, bit-perfect playback, USB exclusive mode or hardware offload in the player.</string>
-    <string name="diag_unprocessed_not_attached">Android did not attach the effect to it. Stop and start playback; if this stays, share the report.</string>
+    <string name="diag_unprocessed_not_attached">Android did not attach the effect to it. Stop and start playback. If it stays this way, turn on “Attach to players myself” in Players.</string>
     <string name="diag_others_title">Other effects on %1$s</string>
     <string name="diag_others_apps">%1$s also processes this audio with %2$s. Two equalizers add up or cancel each other out: turn the other one off.</string>
     <string name="diag_others_system">The system adds %1$s to this audio. That is usually fine, but it changes what you hear.</string>
@@ -547,4 +547,41 @@
     <string name="diag_tip_rootless_global">Global mode equalizes everything on most phones. If it does not, per-player mode works with players that announce their audio (most music apps).</string>
     <string name="diag_tip_rootless_other">Another equalizer with a higher priority takes the effect away. Uninstall or disable it rather than only closing it.</string>
     <string name="diag_tip_report">Still stuck? Share the report from the top bar with the issue you open.</string>
+
+    <!-- Players -->
+    <string name="players_title">Players</string>
+    <string name="players_menu_summary">Which apps SoundPower equalizes, and how it finds them</string>
+    <string name="players_chip_all">All audio</string>
+    <string name="players_chip_none">No player</string>
+    <string name="players_chip_more">%1$s +%2$d</string>
+    <string name="players_chip_not_equalized">Not equalized: %1$s</string>
+    <string name="players_chip_description">Players: %1$s. Opens the list of players.</string>
+    <string name="players_how">How players are found</string>
+    <string name="players_how_root">The module attaches SoundPower to every music stream. The app reads Android\'s audio service as root to show who plays.</string>
+    <string name="players_root_fallback">Attach to players myself</string>
+    <string name="players_root_fallback_hint">For phones where the module\'s effect does not reach music. SoundPower attaches to each player below, while a notification shows.</string>
+    <string name="players_advanced">Find players that do not announce</string>
+    <string name="players_advanced_hint">Reads which apps play from Android\'s audio service, every few seconds. Needs a permission you grant once from a computer.</string>
+    <string name="players_permission_title">Grant the permission</string>
+    <string name="players_permission_body">Connect the phone to a computer with USB debugging on, and run:</string>
+    <string name="players_permission_copy">Copy</string>
+    <string name="players_permission_copied">Command copied</string>
+    <string name="players_permission_check">Check again</string>
+    <string name="players_permission_granted">Permission granted: every player is found.</string>
+    <string name="players_now">Now</string>
+    <string name="players_now_none">No player has an audio session right now. Start music in a player.</string>
+    <string name="players_now_announced_only">Only players that announce their audio show here. Turn on advanced tracking to see the others.</string>
+    <string name="players_seen">Seen before</string>
+    <string name="players_forget">Forget %1$s</string>
+    <string name="players_switch">Equalize %1$s</string>
+    <string name="players_global_note">With “All audio”, SoundPower processes everything together, so a player cannot be left out. Choose “Players one by one” for the switches to apply.</string>
+    <string name="players_root_note">The module processes every player. The switches apply to the players the app attaches to itself, with “Attach to players myself” on.</string>
+    <string name="players_state_playing_equalized">Playing · equalized</string>
+    <string name="players_state_playing_not_equalized">Playing · not equalized</string>
+    <string name="players_state_playing">Playing</string>
+    <string name="players_state_paused">Paused</string>
+    <string name="players_state_equalized">Equalized</string>
+    <string name="players_state_open">Audio session open</string>
+    <string name="players_state_off">Turned off</string>
+    <string name="players_last_seen">Last seen %1$s</string>
 </resources>

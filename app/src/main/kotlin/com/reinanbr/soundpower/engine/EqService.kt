@@ -7,22 +7,21 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.media.audiofx.AudioEffect
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.reinanbr.soundpower.R
+import com.reinanbr.soundpower.effect.SessionInstances
 import com.reinanbr.soundpower.SoundPowerApplication
 import com.reinanbr.soundpower.model.AudioOutput
 import com.reinanbr.soundpower.model.OutputKind
+import com.reinanbr.soundpower.players.Players
 import com.reinanbr.soundpower.presets.AutoEqSuggestion
 import com.reinanbr.soundpower.presets.CurrentPreset
 import com.reinanbr.soundpower.rootless.RootlessEngine
@@ -32,21 +31,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.min
 
 /**
- * Keeps the equalizer working while the app is in the background, for two jobs:
+ * Keeps the equalizer working while the app is in the background, for three jobs:
  *
  * - Without root, it holds Android's audio effect: Android removes an app's effects when its
- *   process dies. It attaches the engine to the global output or to the sessions players announce.
+ *   process dies. It attaches the engine to the global output or to the players' sessions.
+ * - With root and the per-session fallback, it holds the SoundPower instances the app attaches to
+ *   the players' sessions.
  * - With assignments, it applies the preset assigned to an output when music moves there, in
  *   either mode.
  *
@@ -55,23 +55,6 @@ import kotlin.math.min
  */
 class EqService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-
-    /** Sessions players opened, with their package. */
-    private val sessions = MutableStateFlow<Map<Int, String?>>(emptyMap())
-
-    private var receiving = false
-
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val session = intent.getIntExtra(AudioEffect.EXTRA_AUDIO_SESSION, 0)
-            if (session <= 0) return
-            when (intent.action) {
-                AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION ->
-                    sessions.update { it + (session to intent.getStringExtra(AudioEffect.EXTRA_PACKAGE_NAME)) }
-                AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION -> sessions.update { it - session }
-            }
-        }
-    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -83,14 +66,9 @@ class EqService : Service() {
             stopSelf()
             return
         }
-        val filter = IntentFilter().apply {
-            addAction(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION)
-            addAction(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION)
-        }
-        // Players are other apps.
-        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
-        receiving = true
         val engine = container.rootless
+        val players = container.players
+        val fallback = container.fallback
         val eq = container.eq
         val prefs = container.uiPrefs
         val presets = container.presets
@@ -104,22 +82,32 @@ class EqService : Service() {
                 }
             }
         }
+        val eqOn = eq.settings.filterNotNull().map { it.enabled }
         // Android's effect only without root, and only while the equalizer is on.
-        val rootlessOn = combine(prefs.engine, eq.settings.filterNotNull().map { it.enabled }) { mode, on -> mode == EngineMode.ROOTLESS && on }
+        val rootlessOn = combine(prefs.engine, eqOn) { mode, on -> mode == EngineMode.ROOTLESS && on }
+        val fallbackOn = combine(prefs.engine, eqOn, prefs.rootFallback) { mode, on, f -> mode == EngineMode.ROOT && on && f }
+        // The players' sessions, minus the players the user turned off; collected only when needed,
+        // since collecting keeps AudioFlinger's dump being read.
+        val playerTargets = combine(players.sessions, players.known) { s, k -> Players.targets(s, k.disabled) }
         scope.launch {
-            combine(rootlessOn, prefs.rootless, sessions) { on, o, s -> Triple(on, o, s) }.collectLatest { (on, options, open) ->
-                val targets = when {
-                    !on -> emptyMap()
-                    options.scope == RootlessScope.GLOBAL -> mapOf(RootlessEngine.GLOBAL_SESSION to null)
-                    else -> open
+            combine(rootlessOn, prefs.rootless) { on, o -> on to o }.collectLatest { (on, options) ->
+                when {
+                    !on -> engine.configure(emptyMap(), options.precision.frameMs)
+                    options.scope == RootlessScope.GLOBAL ->
+                        engine.configure(mapOf(RootlessEngine.GLOBAL_SESSION to null), options.precision.frameMs)
+                    else -> playerTargets.collect { engine.configure(it, options.precision.frameMs) }
                 }
-                engine.configure(targets, options.precision.frameMs)
             }
         }
         scope.launch {
-            combine(rootlessOn, prefs.rootless, engine.status, presets.current, container.output.output) { on, o, st, preset, out ->
-                Status(on, o, st, preset, out)
-            }.collect(::show)
+            fallbackOn.collectLatest { on ->
+                if (on) playerTargets.collect { withContext(Dispatchers.Default) { fallback.configure(it) } } else fallback.stop()
+            }
+        }
+        scope.launch {
+            combine(rootlessOn, fallbackOn, prefs.rootless, engine.status, fallback.status) { r, f, o, st, fs -> Engines(r, f, o, st, fs) }
+                .combine(combine(presets.current, container.output.output) { p, o -> p to o }) { e, (preset, out) -> Status(e, preset, out) }
+                .collect(::show)
         }
         // Instances that could not be created (audioserver restarting) are tried again, less and less often.
         scope.launch {
@@ -133,6 +121,16 @@ class EqService : Service() {
                         wait = min(wait * 2, RETRY_MAX_MS)
                     }
                 }
+        }
+        scope.launch {
+            fallback.status.map { it.failed.isNotEmpty() }.distinctUntilChanged().collectLatest { failing ->
+                var wait = RETRY_FIRST_MS
+                while (failing) {
+                    delay(wait)
+                    withContext(Dispatchers.Default) { fallback.retry() }
+                    wait = min(wait * 2, RETRY_MAX_MS)
+                }
+            }
         }
         // AutoEQ suggestions for headphones that connect while the app is in the background.
         scope.launch {
@@ -150,10 +148,12 @@ class EqService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
-        if (receiving) unregisterReceiver(receiver)
         val container = (application as SoundPowerApplication).container
         // The app's scope outlives the service; the instances go with it.
-        container.appScope.launch { container.rootless.stop() }
+        container.appScope.launch {
+            container.rootless.stop()
+            container.fallback.stop()
+        }
         super.onDestroy()
     }
 
@@ -170,26 +170,33 @@ class EqService : Service() {
         false
     }
 
-    private class Status(
+    private class Engines(
         val rootless: Boolean,
+        val fallback: Boolean,
         val options: RootlessOptions,
         val engine: RootlessEngine.Status,
-        val preset: CurrentPreset?,
-        val output: AudioOutput,
+        val instances: SessionInstances.Status,
     )
 
+    private class Status(val engines: Engines, val preset: CurrentPreset?, val output: AudioOutput)
+
     private fun show(s: Status) {
+        val e = s.engines
         val lines = buildList {
-            if (s.rootless) {
-                val active = s.engine.attachments.filter { it.active }
+            if (e.rootless) {
+                val active = e.engine.attachments.filter { it.active }
                 add(
                     when {
-                        s.options.scope == RootlessScope.GLOBAL && active.isNotEmpty() -> getString(R.string.rootless_notification_global)
-                        s.options.scope == RootlessScope.GLOBAL -> getString(R.string.rootless_notification_failed)
+                        e.options.scope == RootlessScope.GLOBAL && active.isNotEmpty() -> getString(R.string.rootless_notification_global)
+                        e.options.scope == RootlessScope.GLOBAL -> getString(R.string.rootless_notification_failed)
                         active.isEmpty() -> getString(R.string.rootless_notification_waiting)
                         else -> resources.getQuantityString(R.plurals.rootless_notification_sessions, active.size, active.size)
                     },
                 )
+            }
+            if (e.fallback) {
+                val n = e.instances.attached.size
+                add(if (n == 0) getString(R.string.rootless_notification_waiting) else resources.getQuantityString(R.plurals.rootless_notification_sessions, n, n))
             }
             add(outputName(s.output))
         }

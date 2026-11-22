@@ -3,6 +3,7 @@ package com.reinanbr.soundpower.diagnostics
 
 import com.reinanbr.soundpower.effect.EffectController
 import com.reinanbr.soundpower.effect.EffectException
+import com.reinanbr.soundpower.effect.SessionInstances
 import com.reinanbr.soundpower.engine.EngineMode
 import com.reinanbr.soundpower.eq.EqRepository
 import com.reinanbr.soundpower.root.ModuleManager
@@ -27,6 +28,9 @@ class DiagnosticsRepository(
     private val eq: EqRepository,
     private val prefs: UiPrefsStore,
     private val rootless: RootlessEngine,
+    private val fallback: SessionInstances,
+    /** The app holds the DUMP permission (advanced tracking without root). */
+    private val hasDumpPermission: () -> Boolean,
     /** SoundPower's own effect is registered (public API). */
     private val isModuleRegistered: () -> Boolean,
     /** Android may stop the app to save battery; null if unknown. */
@@ -55,6 +59,13 @@ class DiagnosticsRepository(
             directVolume = prefs.directVolume.first(),
             bundled = setup.bundled,
             ownPid = ownPid,
+            players = PlayerSettings(
+                rootFallback = prefs.rootFallback.first(),
+                advancedTracking = prefs.advancedTracking.first(),
+                dumpPermission = hasDumpPermission(),
+                turnedOff = prefs.knownPlayers.first().disabled,
+                attached = fallback.status.value.attached,
+            ),
         )
         return when (engine) {
             EngineMode.ROOT -> base.copy(

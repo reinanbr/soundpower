@@ -9,6 +9,7 @@ import com.reinanbr.soundpower.engine.EngineMode
 import com.reinanbr.soundpower.engine.Precision
 import com.reinanbr.soundpower.engine.RootlessOptions
 import com.reinanbr.soundpower.engine.RootlessScope
+import com.reinanbr.soundpower.players.KnownPlayers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -80,6 +81,37 @@ class UiPrefsStore(file: File, scope: CoroutineScope) {
         store.updateData { it + (KEY_DIRECT_VOLUME to if (on) "1" else "0") }
     }
 
+    /**
+     * Without root: also find the players that do not announce their sessions, from AudioFlinger's
+     * dump (needs the DUMP permission, granted from a computer).
+     */
+    val advancedTracking: Flow<Boolean> = store.data.map { it[KEY_ADVANCED_TRACKING] == "1" }.distinctUntilChanged()
+
+    suspend fun setAdvancedTracking(on: Boolean) {
+        store.updateData { it + (KEY_ADVANCED_TRACKING to if (on) "1" else "0") }
+    }
+
+    /**
+     * With root: the app attaches SoundPower to players' sessions itself, for devices where the
+     * system does not attach the module's effect to music.
+     */
+    val rootFallback: Flow<Boolean> = store.data.map { it[KEY_ROOT_FALLBACK] == "1" }.distinctUntilChanged()
+
+    suspend fun setRootFallback(on: Boolean) {
+        store.updateData { it + (KEY_ROOT_FALLBACK to if (on) "1" else "0") }
+    }
+
+    /** The players the app has seen, with the user's choice for each. */
+    val knownPlayers: Flow<KnownPlayers> = store.data.map { KnownPlayers.decode(it[KEY_PLAYERS]) }.distinctUntilChanged()
+
+    /** Applies [change] to the remembered players; a null result leaves them as they are. */
+    suspend fun updateKnownPlayers(change: (KnownPlayers) -> KnownPlayers?) {
+        store.updateData { prefs ->
+            val next = change(KnownPlayers.decode(prefs[KEY_PLAYERS])) ?: return@updateData prefs
+            prefs + (KEY_PLAYERS to next.encode())
+        }
+    }
+
     private object LinesSerializer : Serializer<Map<String, String>> {
         override val defaultValue: Map<String, String> = emptyMap()
 
@@ -101,5 +133,8 @@ class UiPrefsStore(file: File, scope: CoroutineScope) {
         const val KEY_ROOTLESS_SCOPE = "rootless_scope"
         const val KEY_PRECISION = "rootless_precision"
         const val KEY_DIRECT_VOLUME = "direct_volume"
+        const val KEY_ADVANCED_TRACKING = "advanced_tracking"
+        const val KEY_ROOT_FALLBACK = "root_fallback"
+        const val KEY_PLAYERS = "players"
     }
 }
